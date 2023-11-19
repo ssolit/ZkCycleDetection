@@ -1,58 +1,60 @@
-// import "hashes/sha256/512bitPacked" as sha256packed;
+import "hashes/sha256/512bitPacked" as sha256packed;
 
-// const u32 n = 4; // number of people nodes in graph 
+const u32 n = 4; // number of people nodes in graph 
 
 
-// def check_top_sort(bool[n][n] g, u8[n] top_sort) -> bool{
-//     for u32 i in 0..n {
-//         for u32 j in (i+1)..n {
-//             assert(!g[i][j]);
-//         }
-//     }
-//     return true;
-// }
-
-// // idea for hashing the array. Not secure though
-// def hash2DArray(bool[n][n] a) -> field
-// {
-//     // field mut preimage = 1;
-//     // field mut counter1 = 1;
-//     // field mut counter2 = 13;
-
-//     //  for u32 i in 0..n {
-//     //     for u32 j in (i+1)..n {
-//     //         counter1 = counter1 + 1;
-//     //         counter2 = counter2 + 1;
-//     //         preimage = if a[i][j] {preimage * counter1 * counter2 + 1} else {preimage};
-//     //     }
-//     // }
-
-//     // field[2] hash = sha256packed([0, 0, 0, preimage]);
-
-//     // return hash[0];
-//     return 42;
-// }
-
-// def check_g_com_match(field g_com, bool[n][n] g) -> bool{
-//     field hash = hash2DArray(g);
-//     assert(hash == g_com);
-//     return true;
-// }
-
-// def main(public field g_com, private bool[n][n] g, private u8[n] top_sort) {
-//     assert(check_g_com_match(g_com, g));
-//     assert(check_top_sort(g, top_sort));
-// }
-
-struct Bar {
-    field a;
+def check_top_sort(bool[n][n] g, u8[n] top_sort) -> bool{
+    for u32 i in 0..n {
+        for u32 j in (i+1)..n {
+            assert(!g[i][j]);
+        }
+    }
+    return true;
 }
 
-struct Foo {
-    u8 a;
-    Bar b;
-}
+// idea for hashing the array. Not secure though
+// note to self: use secret randomness for private hashing
+// still problem of how to prevent prover from finding array collisions 
+def hash2DArray(bool[n][n] a) -> field
+{
+    field mut preimage = 1;
+    field mut counter1 = 1;
+    field mut counter2 = 13;
 
-def main(Foo foo, bool[2] bar, field num) -> field {
+     for u32 i in 0..n {
+        for u32 j in (i+1)..n {
+            counter1 = counter1 + 1;
+            counter2 = counter2 + 1;
+            preimage = if a[i][j] {preimage * counter1 * counter2 + 1} else {preimage};
+        }
+    }
+
+    field[2] hash = sha256packed([0, 0, 0, preimage]);
+
+    return hash[0];
     return 42;
 }
+
+def check_g_com_match(field g_com, bool[n][n] g) -> bool{
+    field hash = hash2DArray(g);
+    assert(hash == g_com);
+    return true;
+}
+
+def main(public field g_com, private bool[n][n] g, private u8[n] top_sort) {
+    assert(check_g_com_match(g_com, g));
+    assert(check_top_sort(g, top_sort));
+}
+
+// struct Bar {
+//     field a;
+// }
+
+// struct Foo {
+//     u8 a;
+//     Bar b;
+// }
+
+// def main(Foo foo, bool[2] bar, field num) -> field {
+//     return 42;
+// }
