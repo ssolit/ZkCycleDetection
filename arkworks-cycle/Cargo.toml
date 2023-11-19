@@ -13,5 +13,8 @@ ark-r1cs-std = { version = "0.4" }
 ark-snark = { version = "0.4" }
 ark-relations = { version = "0.4" }
 
+tracing = { version = "0.1", default-features = false, features = [ "attributes" ] }
+tracing-subscriber = { version = "0.2" }
+
 [dev-dependencies]
 itertools = "0.10.1"
