@@ -1,0 +1,50 @@
+{
+  "inputs": [
+    {
+      "name": "foo",
+      "public": true,
+      "type": "struct",
+      "components": {
+        "name": "Foo",
+        "generics": [],
+        "members": [
+          {
+            "name": "a",
+            "type": "u8"
+          },
+          {
+            "name": "b",
+            "type": "struct",
+            "components": {
+              "name": "Bar",
+              "generics": [],
+              "members": [
+                {
+                  "name": "a",
+                  "type": "field"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "bar",
+      "public": true,
+      "type": "array",
+      "components": {
+        "size": 2,
+        "type": "bool"
+      }
+    },
+    {
+      "name": "num",
+      "public": true,
+      "type": "field"
+    }
+  ],
+  "output": {
+    "type": "field"
+  }
+}
