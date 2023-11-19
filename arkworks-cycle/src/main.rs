@@ -21,16 +21,11 @@ fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
 ) -> Result<(), SynthesisError> {
     for i in 0..N {
         for j in i+1..N {
-            let value = topo.0[i].value;
-            // adjMatrix.0[topo.0[i].value][topo.0[j]].enforce_equal(&Boolean::FALSE)?;
+            let transactionC = &adjMatrix.0[i][j]; // true if person i sent to person j
+            let senderLater = topo.0[i].is_gt(&topo.0[j])?; // i is later in the topo sort than j 
+            transactionC.and(&senderLater)?.enforce_equal(&Boolean::TRUE)?;
         }
     }
-    // let c = adjMatrix.0;
-    // c[0][0].enforce_equal(&Boolean::FALSE)?;
-    // for (i, cell) in topo.iter().enumerate() {
-    //     for (cell2) in topo[i+1..]
-
-    // }
     Ok(())
 }
 
