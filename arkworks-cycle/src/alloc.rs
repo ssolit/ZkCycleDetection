@@ -14,13 +14,13 @@ impl<const N: usize, F: PrimeField> AllocVar<[[bool; N]; N], F> for AdjMatrix<N,
     ) -> Result<Self, SynthesisError> {
         let cs = cs.into();
         let row = [(); N].map(|_| Boolean::constant(false));
-        let mut adjMatrix = AdjMatrix([(); N].map(|_| row.clone()));
+        let mut adj_matrix = AdjMatrix([(); N].map(|_| row.clone()));
         let value = f().map_or([[false; N]; N], |f| *f.borrow());
         for (i, row) in value.into_iter().enumerate() {
             for (j, cell) in row.into_iter().enumerate() {
-                adjMatrix.0[i][j] = Boolean::new_variable(cs.clone(), || Ok(cell), mode)?;
+                adj_matrix.0[i][j] = Boolean::new_variable(cs.clone(), || Ok(cell), mode)?;
             }
         }
-        Ok(adjMatrix)
+        Ok(adj_matrix)
     }
 } 
