@@ -33,12 +33,12 @@ fn check_helper<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &[[bool; N]; N],
     topo: &[u8; N],
 ) {
-    // let cs = ConstraintSystem::<ConstraintF>::new_ref();
-    // let adj_matrix_var = AdjMatrix::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
-    // let topo_var = TopoSort::new_witness(cs.clone(), || Ok(topo)).unwrap();
-    // check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
+    let cs = ConstraintSystem::<ConstraintF>::new_ref();
+    let adj_matrix_var = AdjMatrix::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let topo_var = TopoSort::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
     // //TODO: check hash of adj_matrix matches some public input
-    // assert!(cs.is_satisfied().unwrap());
+    assert!(cs.is_satisfied().unwrap());
 }
 
 fn main() {
