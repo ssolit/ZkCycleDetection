@@ -13,12 +13,14 @@ use cmp::CmpGadget;
 mod cmp;
 mod alloc;
 
-pub struct AdjMatrix<const N: usize, ConstraintF: PrimeField>([[Boolean<ConstraintF>; N]; N]);
-pub struct TopoSort<const N: usize, ConstraintF: PrimeField>([UInt8<ConstraintF>; N]);
+pub struct Boolean2DArray<const N: usize, ConstraintF: PrimeField>([[Boolean<ConstraintF>; N]; N]);
+pub struct Uint8Array<const N: usize, ConstraintF: PrimeField>([UInt8<ConstraintF>; N]);
+pub struct BooleanArray<const N: usize, ConstraintF: PrimeField>([Boolean<ConstraintF>; N]);
+
 
 fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
-    adj_matrix: &AdjMatrix<N, ConstraintF>, 
-    topo: &TopoSort<N, ConstraintF>,
+    adj_matrix: &Boolean2DArray<N, ConstraintF>, 
+    topo: &Uint8Array<N, ConstraintF>,
 ) -> Result<(), SynthesisError> {
     for i in 0..N {
         for j in i+1..N {
@@ -35,8 +37,8 @@ fn check_helper<const N: usize, ConstraintF: PrimeField>(
     topo: &[u8; N],
 ) {
     let cs = ConstraintSystem::<ConstraintF>::new_ref();
-    let adj_matrix_var = AdjMatrix::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
-    let topo_var = TopoSort::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
     // //TODO: check hash of adj_matrix matches some public input
     assert!(cs.is_satisfied().unwrap());
@@ -84,8 +86,8 @@ fn valid_topo_sort() {
     
 
     let cs = ConstraintSystem::<F>::new_ref();
-    let adj_matrix_var = AdjMatrix::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
-    let topo_var = TopoSort::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
     // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
@@ -119,8 +121,8 @@ fn invalid_topo_sort() {
     
 
     let cs = ConstraintSystem::<F>::new_ref();
-    let adj_matrix_var = AdjMatrix::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
-    let topo_var = TopoSort::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
     // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
