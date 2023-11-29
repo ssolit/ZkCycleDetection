@@ -13,9 +13,10 @@ use cmp::CmpGadget;
 mod cmp;
 mod alloc;
 
-pub struct Boolean2DArray<const N: usize, ConstraintF: PrimeField>([[Boolean<ConstraintF>; N]; N]);
 pub struct Uint8Array<const N: usize, ConstraintF: PrimeField>([UInt8<ConstraintF>; N]);
 pub struct BooleanArray<const N: usize, ConstraintF: PrimeField>([Boolean<ConstraintF>; N]);
+pub struct Boolean2DArray<const N: usize, ConstraintF: PrimeField>([[Boolean<ConstraintF>; N]; N]);
+pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeField>([[[Boolean<ConstraintF>; N]; N]; M]);
 
 
 // special case where every node should be considered
@@ -36,7 +37,7 @@ fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     topo: &Uint8Array<N, ConstraintF>,
 ) -> Result<(), SynthesisError> {
     for i in 0..N {
-        for j in i+1..N {
+        for j in 0..N {
             let transacted = &adj_matrix.0[i][j]; // true if person i sent to person j
             let sender_in_subgraph = &subgraph_nodes.0[i];
             let reciever_in_subgraph = &subgraph_nodes.0[j];
@@ -61,17 +62,37 @@ fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     Ok(())
 }
 
-fn check_helper<const N: usize, ConstraintF: PrimeField>(
-    adj_matrix: &[[bool; N]; N],
-    topo: &[u8; N],
-) {
-    let cs = ConstraintSystem::<ConstraintF>::new_ref();
-    let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
-    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
-    check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
-    assert!(cs.is_satisfied().unwrap());
+fn check_multi_subgraph_topo_sort<const N: usize, const M: usize, ConstraintF: PrimeField>(
+    adj_matrix_array: &Boolean3DArray<N, M, ConstraintF>, 
+    subgraph_nodes: &BooleanArray<N, ConstraintF>,
+    topo: &Uint8Array<N, ConstraintF>,
+) -> Result<(), SynthesisError> {
+    let combined_adj_matrix = &mut Boolean2DArray(adj_matrix_array.0[0].clone());
+
+    for k in 1..M {
+        for i in 0..N {
+            for j in 0..N {
+                combined_adj_matrix.0[i][j] = combined_adj_matrix.0[i][j].or(&adj_matrix_array.0[k][i][j])?;
+            }
+        }
+    }
+
+    check_subgraph_topo_sort(combined_adj_matrix, subgraph_nodes, topo)
 }
+
+// fn check_helper<const N: usize, ConstraintF: PrimeField>(
+//     adj_matrix: &[[bool; N]; N],
+//     topo: &[u8; N],
+// ) {
+//     let cs = ConstraintSystem::<ConstraintF>::new_ref();
+//     let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+//     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
+//     check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
+//     // //TODO: check hash of adj_matrix matches some public input
+//     assert!(cs.is_satisfied().unwrap());
+// }
+
+
 
 fn main() {
     // TODO: add IO?
@@ -148,6 +169,44 @@ fn invalid_topo_sort() {
 }
 
 #[test]
+fn invalid_topo_sort_2() {
+    use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
+    use tracing_subscriber::layer::SubscriberExt;
+    use ark_bls12_381::Fq as F;
+
+    // supposed to give debug traces, but didn't
+    let mut layer = ConstraintLayer::default();
+    layer.mode = TracingMode::OnlyConstraints;
+    let subscriber = tracing_subscriber::Registry::default().with(layer);
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    // Check that it accepts a valid solution.
+    let adj_matrix = [                                    
+        [false, true, true, false, false, false],  //               [0]<-----\
+        [false, false, true, false, false, false], //               / \       \ 
+        [false, false, false, true, false, true], //             [1]->[2]      \
+        [false, false, false, false, false, false], //                /  \     /
+        [true, false, false, false, false, false], //               [3]  [5]->[4]
+        [false, false, false, false, true, false], //                     
+    ];
+    let topo = [0, 1, 2, 3, 4, 5]; // bad because 4 -> 0
+    
+
+    let cs = ConstraintSystem::<F>::new_ref();
+    let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
+    // //TODO: check hash of adj_matrix matches some public input
+    let is_satisfied = cs.is_satisfied().unwrap();
+    if !is_satisfied {
+        // If it isn't, find out the offending constraint.
+        println!("{:?}", cs.which_is_unsatisfied());
+    }
+    assert!(!is_satisfied);
+}
+
+
+#[test]
 fn topo_sort_missing_nodes() {
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
@@ -166,7 +225,7 @@ fn topo_sort_missing_nodes() {
         [false, false, false, true], //             [1]->[2] -> 3
         [false, false, false, false] //                     
     ];
-    let topo = [0, 0, 0, 0];
+    let topo = [0, 0, 0, 0]; // bad because not including all nodes
     
 
     let cs = ConstraintSystem::<F>::new_ref();
@@ -202,7 +261,47 @@ fn valid_subgraph_sort() {
         [false, false, false, false] //                     
     ];
     let subgraph_nodes = [false, true, true, true]; // simulate node 1's subgraph, 0 isn't reachable so ignore 
-    let topo = [1, 0, 2, 3]; 
+    let topo = [1, 0, 2, 3]; // 0 is ignored, so order its spot in the sort doesn't matter
+    
+
+    let cs = ConstraintSystem::<F>::new_ref();
+    let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
+    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    check_subgraph_topo_sort(&adj_matrix_var, &subgraph_nodes_var, &topo_var).unwrap();
+    // //TODO: check hash of adj_matrix matches some public input
+    let is_satisfied = cs.is_satisfied().unwrap();
+    if !is_satisfied {
+        // If it isn't, find out the offending constraint.
+        println!("offending constaint");
+        println!("{:?}", cs.which_is_unsatisfied());
+    }
+    assert!(is_satisfied);
+}
+
+#[test]
+fn valid_subgraph_sort_ignores_cycle() {
+    use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
+    use tracing_subscriber::layer::SubscriberExt;
+    use ark_bls12_381::Fq as F;
+
+    // supposed to give debug traces, but didn't
+    let mut layer = ConstraintLayer::default();
+    layer.mode = TracingMode::OnlyConstraints;
+    let subscriber = tracing_subscriber::Registry::default().with(layer);
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    // Check that it accepts a valid solution.
+    let adj_matrix = [                                      
+        [false, true, true, false, false, false],  //               [0]          
+        [false, false, true, false, false, false], //               / \
+        [false, false, false, true, false, false], //             [1]->[2]->[3]          
+        [false, false, false, false, false, false], //
+        [false, false, false, false, false, true], //               [4]<->[5]
+        [false, false, false, false, true, false], //                     
+    ];
+    let subgraph_nodes = [true, true, true, true, false, false]; // node 4+5 are ignored
+    let topo = [0, 1, 2, 3, 4, 5]; 
     
 
     let cs = ConstraintSystem::<F>::new_ref();
@@ -247,6 +346,122 @@ fn invalid_subgraph_topo() {
     let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_subgraph_topo_sort(&adj_matrix_var, &subgraph_nodes_var, &topo_var).unwrap();
+    // //TODO: check hash of adj_matrix matches some public input
+    let is_satisfied = cs.is_satisfied().unwrap();
+    if !is_satisfied {
+        // If it isn't, find out the offending constraint.
+        println!("offending constaint");
+        println!("{:?}", cs.which_is_unsatisfied());
+    }
+    assert!(!is_satisfied);
+}
+
+#[test]
+fn valid_multi() {
+    use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
+    use tracing_subscriber::layer::SubscriberExt;
+    use ark_bls12_381::Fq as F;
+
+    // supposed to give debug traces, but didn't
+    let mut layer = ConstraintLayer::default();
+    layer.mode = TracingMode::OnlyConstraints;
+    let subscriber = tracing_subscriber::Registry::default().with(layer);
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    let adj_matrix_1 = [                                      
+        [false, true, true, false, false, false],  //               [0]
+        [false, false, true, false, false, false], //               / \
+        [false, false, false, false, false, false], //             [1]->[2]
+        [false, false, false, false, false, false], //
+        [false, false, false, false, false, false], // 
+        [false, false, false, false, false, false], //                     
+    ];
+    let adj_matrix_2 = [                                      
+        [false, false, false, false, false, false], //               
+        [false, false, false, false, false, false], //               
+        [false, false, false, true, false, false], //             [2] -> [3] -> [5]
+        [false, false, false, false, false, true], //
+        [false, false, false, false, false, false], // 
+        [false, false, false, false, false, false], //                     
+    ];
+
+    let adj_matrix_3 = [                                      
+        [false, false, false, false, false, false], //               
+        [false, false, false, false, false, false], //              
+        [false, false, false, false, false, false], //             
+        [false, false, false, false, false, false], //          [5] -> [4]
+        [false, false, false, false, false, false], // 
+        [false, false, false, false, true, false], //                     
+    ];
+
+    let adj_matrix_array = [adj_matrix_1, adj_matrix_2, adj_matrix_3];
+    let subgraph_nodes = [true, true, true, true, true, true]; 
+    let topo = [0, 1, 2, 3, 5, 4]; 
+
+
+    let cs = ConstraintSystem::<F>::new_ref();
+    let adj_matrix_array_var = Boolean3DArray::new_witness(cs.clone(), || Ok(adj_matrix_array)).unwrap();
+    let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
+    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    check_multi_subgraph_topo_sort(&adj_matrix_array_var, &subgraph_nodes_var, &topo_var).unwrap();
+    // //TODO: check hash of adj_matrix matches some public input
+    let is_satisfied = cs.is_satisfied().unwrap();
+    if !is_satisfied {
+        // If it isn't, find out the offending constraint.
+        println!("offending constaint");
+        println!("{:?}", cs.which_is_unsatisfied());
+    }
+    assert!(is_satisfied);
+}
+
+#[test]
+fn invalid_multi_bad_topo() {
+    use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
+    use tracing_subscriber::layer::SubscriberExt;
+    use ark_bls12_381::Fq as F;
+
+    // supposed to give debug traces, but didn't
+    let mut layer = ConstraintLayer::default();
+    layer.mode = TracingMode::OnlyConstraints;
+    let subscriber = tracing_subscriber::Registry::default().with(layer);
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    let adj_matrix_1 = [                                      
+        [false, true, true, false, false, false],  //               [0]
+        [false, false, true, false, false, false], //               / \
+        [false, false, false, false, false, false], //             [1]->[2]
+        [false, false, false, false, false, false], //
+        [false, false, false, false, false, false], // 
+        [false, false, false, false, false, false], //                     
+    ];
+    let adj_matrix_2 = [                                      
+        [false, false, false, false, false, false], //               
+        [false, false, false, false, false, false], //               
+        [false, false, false, true, false, false], //             [2] -> [3] -> [5]
+        [false, false, false, false, false, true], //
+        [false, false, false, false, false, false], // 
+        [false, false, false, false, false, false], //                     
+    ];
+
+    let adj_matrix_3 = [                                      
+        [false, false, false, false, false, false], //              [5]
+        [false, false, true, false, false, false], //               / \
+        [false, false, false, false, false, false], //             [0] [4]         
+        [false, false, false, false, false, false], //          
+        [false, false, false, false, false, false], // 
+        [true, false, false, false, true, false], //                     
+    ];
+
+    let adj_matrix_array = [adj_matrix_1, adj_matrix_2, adj_matrix_3];
+    let subgraph_nodes = [true, true, true, true, true, true]; 
+    let topo = [0, 1, 2, 3, 4, 5]; // bad b/c 5 -> 0
+
+
+    let cs = ConstraintSystem::<F>::new_ref();
+    let adj_matrix_array_var = Boolean3DArray::new_witness(cs.clone(), || Ok(adj_matrix_array)).unwrap();
+    let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
+    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    check_multi_subgraph_topo_sort(&adj_matrix_array_var, &subgraph_nodes_var, &topo_var).unwrap();
     // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
