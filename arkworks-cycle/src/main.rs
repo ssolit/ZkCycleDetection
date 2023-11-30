@@ -53,12 +53,11 @@ fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
             let sender_in_subgraph = &subgraph_nodes.0[i];
             let reciever_in_subgraph = &subgraph_nodes.0[j];
 
-            // The subgraph should represent all nodes reachable from a start node
-            // The subgraph is bad if the transaction goes from within subgraph to outside it
+            // Check no edges going out of the subgraph
+            // Which is claimed to be every node reachable from some start node
             let bad_subgraph = transacted
                                     .and(sender_in_subgraph)?
-                                    .and(&reciever_in_subgraph.not())?
-                                    .and(transacted)?;
+                                    .and(&reciever_in_subgraph.not())?;
             let _ = bad_subgraph.enforce_equal(&Boolean::FALSE);       
 
             // check if toposort is invalid because of a backwards edge
@@ -68,6 +67,8 @@ fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
                                             .and(reciever_in_subgraph)?
                                             .and(&wrong_order)?;
             let _ = backwards_edge.enforce_equal(&Boolean::FALSE);
+
+            // output starting node for proof?
         }
     }
     Ok(())
