@@ -36,6 +36,17 @@ fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     subgraph_nodes: &BooleanArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
 ) -> Result<(), SynthesisError> {
+
+     // check that there are no duplicate numbers in the toposort 
+     for i in 0..N {
+        for j in i+1..N {
+            let gt = &topo.0[i].is_gt(&topo.0[j])?;
+            let lt = &topo.0[i].is_lt(&topo.0[j])?;
+            let _ = gt.or(lt)?.enforce_equal(&Boolean::TRUE);
+        }
+     }
+
+    // do checks relating to individual edges
     for i in 0..N {
         for j in 0..N {
             let transacted = &adj_matrix.0[i][j]; // true if person i sent to person j
@@ -50,13 +61,13 @@ fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
                                     .and(transacted)?;
             let _ = bad_subgraph.enforce_equal(&Boolean::FALSE);       
 
-
+            // check if toposort is invalid because of a backwards edge
             let wrong_order = topo.0[i].is_gt(&topo.0[j])?; // i is later in the topo sort than j 
-            let bad_subgraph_toposort = transacted
+            let backwards_edge = transacted
                                             .and(sender_in_subgraph)?
                                             .and(reciever_in_subgraph)?
                                             .and(&wrong_order)?;
-            let _ = bad_subgraph_toposort.enforce_equal(&Boolean::FALSE);
+            let _ = backwards_edge.enforce_equal(&Boolean::FALSE);
         }
     }
     Ok(())
