@@ -1,10 +1,15 @@
 use std::borrow::Borrow;
 
 use ark_ff::PrimeField;
-use ark_r1cs_std::{prelude::{AllocVar, AllocationMode}, boolean::Boolean};
+
+use ark_r1cs_std::{
+    boolean::Boolean,
+    prelude::{AllocVar, AllocationMode},
+};
+
 use ark_relations::r1cs::{Namespace, SynthesisError};
 
-use crate::{AdjMatrix};
+use crate::AdjMatrix;
 
 impl<const N: usize, F: PrimeField> AllocVar<[[bool; N]; N], F> for AdjMatrix<N, F> {
     fn new_variable<T: Borrow<[[bool; N]; N]>>(
@@ -23,4 +28,6 @@ impl<const N: usize, F: PrimeField> AllocVar<[[bool; N]; N], F> for AdjMatrix<N,
         }
         Ok(adj_matrix)
     }
-} 
+}
+
+//TODO: Create a constraint for an adjacent matrix hash vector of size n*n
