@@ -38,6 +38,7 @@ fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
 ) -> Result<(), SynthesisError> {
 
      // check that there are no duplicate numbers in the toposort 
+     // Make faster by making witness bigger??
      for i in 0..N {
         for j in i+1..N {
             let gt = &topo.0[i].is_gt(&topo.0[j])?;
