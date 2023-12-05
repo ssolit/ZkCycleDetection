@@ -1,6 +1,6 @@
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
-    prelude::{Boolean},
+    prelude::{Boolean, AllocVar},
     uint8::UInt8
 };
 
@@ -13,6 +13,8 @@ pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeFiel
 mod cmp;
 mod alloc;
 mod graph_checks;
+
+use crate::graph_checks::graph_checks::{check_topo_sort, check_subgraph_topo_sort, check_multi_subgraph_topo_sort};
 
 
 fn main() {
