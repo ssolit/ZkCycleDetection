@@ -14,6 +14,18 @@ use ark_std::test_rng;
 use crate::cmp;
 use crate::Boolean2DArray;
 
+//construct the hash of a boolean vector
+// 1. Generate Params 2. Preprocess matrix 3. create sponge
+fn hasher<const N: usize, ConstraintF: PrimeField>(
+    adj_matrix: &Boolean2DArray<N, ConstraintF>,
+) -> Result<Vec<Fr>, SynthesisError> {
+    let preprocess = hash_new::matrix_flattener(&adj_matrix).unwrap();
+    let mut sponge = hash_new::sponge_create::<Fr>(&preprocess).unwrap();
+    let hash = hash_new::squeeze_sponge(&mut sponge).unwrap();
+
+    Ok(hash)
+}
+
 pub fn sponge_create<ConstraintF: PrimeField>(
     input: &Vec<bool>,
 ) -> Result<PoseidonSponge<Fr>, SynthesisError> {
