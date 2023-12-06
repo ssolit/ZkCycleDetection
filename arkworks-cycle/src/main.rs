@@ -14,8 +14,9 @@ use ark_std::{
     rand::{RngCore, SeedableRng},
     test_rng, UniformRand,
 };
-use ark_std::fs::File;
-use ark_serialize::CanonicalSerialize;
+use ark_serialize::{CanonicalSerialize, Write};
+use std::fs::File;
+use ark_std::error::Error;
 
 
 fn main() {
@@ -53,7 +54,7 @@ impl<ConstraintF: Field> ConstraintSynthesizer<ConstraintF> for MySillyCircuit<C
     }
 }
 
-fn test_prove_and_verify<E>()
+fn test_prove_and_verify<E>() -> Result<(), Box<dyn Error>>
 where
     E: Pairing,
 {
@@ -81,12 +82,13 @@ where
     assert!(Groth16::<E>::verify_with_processed_vk(&pvk, &[c], &proof).unwrap());
     assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &[a], &proof).unwrap());
 
-    // let mut compressed_bytes = Vec::new();
-    // proof.serialize_compressed(&mut compressed_bytes).unwrap();
-    // let file_path = "./proof";
-    // let mut file = File::create(file_path);
-    // file.write_all(&compressed_bytes);
-    // file.flush();
+    let mut compressed_bytes = Vec::new();
+    proof.serialize_compressed(&mut compressed_bytes).unwrap();
+    let file_path = "./proof";
+    let mut file: File = File::create(file_path)?;
+    file.write_all(&compressed_bytes)?;
+    file.flush()?;
+    Ok(())
 }
 
 mod bls12_381 {
@@ -95,6 +97,6 @@ mod bls12_381 {
 
     #[test]
     fn prove_and_verify() {
-        test_prove_and_verify::<Bls12_381>();
+        let _ = test_prove_and_verify::<Bls12_381>().unwrap();
     }
 }
