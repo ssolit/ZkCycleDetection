@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 
-use ark_groth16::{Groth16, prepare_verifying_key};
+use ark_groth16::{Groth16, prepare_verifying_key, Proof};
 use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
 use ark_ec::pairing::Pairing;
 use ark_ff::Field;
@@ -14,13 +14,14 @@ use ark_std::{
     rand::{RngCore, SeedableRng},
     test_rng, UniformRand,
 };
-use ark_serialize::{CanonicalSerialize, Write};
+use ark_serialize::{Read, Write, CanonicalSerialize};
 use std::fs::File;
 use ark_std::error::Error;
+use ark_bls12_381::Bls12_381;
 
 
 fn main() {
-    // TODO: add IO?
+    let _ = test_prove_and_verify::<Bls12_381>().unwrap();
 }
 
 struct MySillyCircuit<F: Field> {
@@ -88,15 +89,11 @@ where
     let mut file: File = File::create(file_path)?;
     file.write_all(&compressed_bytes)?;
     file.flush()?;
+
+    // let file2 = File::open(file_path)?;
+    // let mut buffer = Vec::new();
+    // file.read_to_end(&mut buffer)?;
+    // let read_proof: Proof<E> = proof;
+    // // let read_proof = <Groth16<_, _> as SNARK<E>::Proof::deserialize_compressed(buffer);
     Ok(())
-}
-
-mod bls12_381 {
-    use super::{test_prove_and_verify};
-    use ark_bls12_381::Bls12_381;
-
-    #[test]
-    fn prove_and_verify() {
-        let _ = test_prove_and_verify::<Bls12_381>().unwrap();
-    }
 }
