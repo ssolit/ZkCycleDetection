@@ -14,3 +14,4 @@ Cargo.lock
 *.pdb
 
 proof
+proof.bin

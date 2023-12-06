@@ -14,14 +14,17 @@ use ark_std::{
     rand::{RngCore, SeedableRng},
     test_rng, UniformRand,
 };
-use ark_serialize::{Read, Write, CanonicalSerialize};
+use ark_serialize::{Read, Write, CanonicalSerialize, CanonicalDeserialize};
 use std::fs::File;
 use ark_std::error::Error;
 use ark_bls12_381::Bls12_381;
 
 
 fn main() {
-    let _ = test_prove_and_verify::<Bls12_381>().unwrap();
+    match test_prove_and_verify::<Bls12_381>() {
+        Ok(()) => (),
+        Err(e) => eprintln!("Back in Main. Error: {:?}", e),
+    }
 }
 
 struct MySillyCircuit<F: Field> {
@@ -85,15 +88,22 @@ where
 
     let mut compressed_bytes = Vec::new();
     proof.serialize_compressed(&mut compressed_bytes).unwrap();
-    let file_path = "./proof";
-    let mut file: File = File::create(file_path)?;
+    let file_path = "./proof.bin";
+    let mut file: File = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .read(true)
+        .open(file_path)
+        .unwrap();
     file.write_all(&compressed_bytes)?;
     file.flush()?;
 
-    // let file2 = File::open(file_path)?;
-    // let mut buffer = Vec::new();
-    // file.read_to_end(&mut buffer)?;
-    // let read_proof: Proof<E> = proof;
-    // // let read_proof = <Groth16<_, _> as SNARK<E>::Proof::deserialize_compressed(buffer);
+    let file2 = File::open(file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    let read_proof = Proof::<E>::deserialize_compressed(&mut buffer)?;
+
+    //TODO deserialize correctly, verify read_proof
+
     Ok(())
 }
