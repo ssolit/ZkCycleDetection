@@ -15,7 +15,8 @@ use ark_std::{
     test_rng, UniformRand,
 };
 use ark_serialize::{Read, Write, CanonicalSerialize, CanonicalDeserialize};
-use std::fs::File;
+use ark_std::io;
+use ark_std::fs::File;
 use ark_std::error::Error;
 use ark_bls12_381::Bls12_381;
 
@@ -101,7 +102,7 @@ where
     let file2 = File::open(file_path)?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
-    let read_proof = Proof::<E>::deserialize_compressed(&mut buffer)?;
+    let read_proof = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())?;
 
     //TODO deserialize correctly, verify read_proof
 
