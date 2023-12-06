@@ -99,14 +99,10 @@ where
     file.write_all(&compressed_bytes)?;
     file.flush()?;
 
-    let file2 = File::open(file_path)?;
+    let mut file2 = File::open(file_path)?;
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    println!("Are the vecs equal? {:?}", compressed_bytes == buffer);
-    println!("here 1");
+    file2.read_to_end(&mut buffer)?;
     let read_proof = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())?;
-    // let read_proof = Proof::<E>::deserialize_compressed(&mut compressed_bytes.as_slice())?;
-    println!("here 2");
 
     assert!(Groth16::<E>::verify_with_processed_vk(&pvk, &[c], &read_proof).unwrap());
     assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &[a], &read_proof).unwrap());
