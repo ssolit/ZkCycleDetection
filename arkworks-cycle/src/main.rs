@@ -23,7 +23,7 @@ use ark_bls12_381::Bls12_381;
 
 fn main() {
     match test_prove_and_verify::<Bls12_381>() {
-        Ok(()) => (),
+        Ok(()) => println!("finished successfully!"),
         Err(e) => eprintln!("Back in Main. Error: {:?}", e),
     }
 }
@@ -102,9 +102,14 @@ where
     let file2 = File::open(file_path)?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
+    println!("Are the vecs equal? {:?}", compressed_bytes == buffer);
+    println!("here 1");
     let read_proof = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())?;
+    // let read_proof = Proof::<E>::deserialize_compressed(&mut compressed_bytes.as_slice())?;
+    println!("here 2");
 
-    //TODO deserialize correctly, verify read_proof
+    assert!(Groth16::<E>::verify_with_processed_vk(&pvk, &[c], &read_proof).unwrap());
+    assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &[a], &read_proof).unwrap());
 
     Ok(())
 }
