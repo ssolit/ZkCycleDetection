@@ -19,9 +19,9 @@ use crate::Boolean2DArray;
 fn hasher<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
 ) -> Result<Vec<Fr>, SynthesisError> {
-    let preprocess = hash_new::matrix_flattener(&adj_matrix).unwrap();
-    let mut sponge = hash_new::sponge_create::<Fr>(&preprocess).unwrap();
-    let hash = hash_new::squeeze_sponge(&mut sponge).unwrap();
+    let preprocess = matrix_flattener(&adj_matrix).unwrap();
+    let mut sponge = sponge_create::<Fr>(&preprocess).unwrap();
+    let hash = squeeze_sponge(&mut sponge).unwrap();
 
     Ok(hash)
 }

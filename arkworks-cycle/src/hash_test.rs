@@ -1,5 +1,5 @@
 #[test]
-fn dummy_gen_hash_test() {
+fn mod_gen_hash_test() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
