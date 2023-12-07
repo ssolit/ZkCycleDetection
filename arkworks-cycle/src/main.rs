@@ -2,37 +2,42 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 
-
-
-use ark_ff::PrimeField;
-use ark_r1cs_std::{
-    prelude::{Boolean, AllocVar},
-    uint8::UInt8
+use ark_groth16::{Groth16, prepare_verifying_key, Proof};
+use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
+use ark_ec::pairing::Pairing;
+use ark_ff::Field;
+use ark_relations::{
+    lc,
+    r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
+};
+use ark_std::{
+    rand::{RngCore, SeedableRng},
+    test_rng, UniformRand,
 };
 
-pub struct Uint8Array<const N: usize, ConstraintF: PrimeField>([UInt8<ConstraintF>; N]);
-pub struct BooleanArray<const N: usize, ConstraintF: PrimeField>([Boolean<ConstraintF>; N]);
-pub struct Boolean2DArray<const N: usize, ConstraintF: PrimeField>([[Boolean<ConstraintF>; N]; N]);
-pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeField>([[[Boolean<ConstraintF>; N]; N]; M]);
+use ark_serialize::{Read, Write, CanonicalSerialize, CanonicalDeserialize};
+use ark_std::io;
+use ark_std::error::Error;
+use ark_bls12_381::Bls12_381;
 
-mod cmp;
 mod alloc;
 mod graph_checks;
-
 use crate::graph_checks::graph_checks::{check_topo_sort, check_subgraph_topo_sort, check_multi_subgraph_topo_sort};
-
-
-// use ark_groth16::Groth16;
-// use ark_bls12_381::{Bls12_381, Fr as BlsFr};
-// use ark_std::{ops::*, UniformRand};
-// use ark_ff::UniformRand;
+use crate::graph_checks::{Uint8Array, BooleanArray, Boolean2DArray, Boolean3DArray};
+use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
+use ark_r1cs_std::alloc::AllocVar;
 
 
 fn main() {
-    // TODO: add IO?
+    match test_prove_and_verify::<Bls12_381>() {
+        Ok(()) => println!("finished successfully!"),
+        Err(e) => eprintln!("Back in Main. Error: {:?}", e),
+    }
 }
 
-fn groth16_test() {
+
+fn set_up_constraints<ConstraintF: ark_ff::Field + ark_ff::PrimeField>(cs: ConstraintSystemRef<ConstraintF>,) {
+    // Check that it accepts a valid solution.
     let adj_matrix = [                                      
         [false, true, true, false],  //               [0]
         [false, false, true, false], //               / \
@@ -40,25 +45,52 @@ fn groth16_test() {
         [false, false, false, false] //                     
     ];
     let topo = [0, 1, 2, 3];
-
-    // // let params
-    // let c = DummyCircuit::<BlsFr> {
-    //     a: Some(BlsFr::rand(rng)),
-    //     b: Some(BlsFr::rand(rng)),
-    //     num_variables: 0,
-    //     num_constraints: 3,
-    // };
-
-    // let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-    // let proof = Groth16::<Bls12_381>::prove(&pk, c.clone(), rng).unwrap();
-
-    // let v = c.a.unwrap().mul(c.b.unwrap());
-
-    // let res = Groth16::<Bls12_381>::verify(&vk, &vec![v], &proof).unwrap();
-    // assert!(res);
+    
+    let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
+    check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
 }
 
+fn test_prove_and_verify<E>() -> Result<(), Box<dyn Error>>
+where
+    E: Pairing,
+{
+    // define the circuit and inputs
+    // let cs = ConstraintSystem::<Bls12_381::Fq>::new_ref();
 
+    // // generate the proof
+    // let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    // let (pk, vk) = Groth16::<E>::setup(cs, &mut rng).unwrap();
+    // let pvk = prepare_verifying_key::<E>(&vk);
+    // let proof = Groth16::<E>::prove(
+    //     &pk,
+    //     cs,
+    //     &mut rng,
+    // )
+    // .unwrap();
 
+    // assert!(Groth16::<E>::verify_with_processed_vk(&pvk, &[c], &proof).unwrap());
+    // assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &[a], &proof).unwrap());
 
+    // let mut compressed_bytes = Vec::new();
+    // proof.serialize_compressed(&mut compressed_bytes).unwrap();
+    // let file_path = "./proof.bin";
+    // let mut file: File = std::fs::OpenOptions::new()
+    //     .create(true)
+    //     .write(true)
+    //     .read(true)
+    //     .open(file_path)
+    //     .unwrap();
+    // file.write_all(&compressed_bytes)?;
+    // file.flush()?;
 
+    // let mut file2 = File::open(file_path)?;
+    // let mut buffer = Vec::new();
+    // file2.read_to_end(&mut buffer)?;
+    // let read_proof = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())?;
+
+    // assert!(Groth16::<E>::verify_with_processed_vk(&pvk, &[c], &read_proof).unwrap());
+    // assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &[a], &read_proof).unwrap());
+
+    Ok(())
+}

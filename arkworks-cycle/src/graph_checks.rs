@@ -4,12 +4,20 @@ use ark_r1cs_std::{
     uint8::UInt8
 };
 
-use crate::{Uint8Array, BooleanArray, Boolean2DArray, Boolean3DArray};
-use crate::graph_checks::graph_checks::{check_topo_sort, check_subgraph_topo_sort, check_multi_subgraph_topo_sort};
+
+use crate::graph_checks::graph_checks::{check_topo_sort, check_subgraph_topo_sort, check_multi_subgraph_topo_sort, 
+    Uint8Array, BooleanArray, Boolean2DArray, Boolean3DArray};
+
+pub struct Uint8Array<const N: usize, ConstraintF: PrimeField>([UInt8<ConstraintF>; N]);
+pub struct BooleanArray<const N: usize, ConstraintF: PrimeField>([Boolean<ConstraintF>; N]);
+pub struct Boolean2DArray<const N: usize, ConstraintF: PrimeField>([[Boolean<ConstraintF>; N]; N]);
+pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeField>([[[Boolean<ConstraintF>; N]; N]; M]);
+
+mod alloc;
 
 pub mod graph_checks {
 
-    use crate::{Uint8Array, BooleanArray, Boolean2DArray, Boolean3DArray};
+    use crate::{};
     use ark_ff::PrimeField;
     use ark_r1cs_std::{
         prelude::{Boolean, EqGadget, AllocVar},
@@ -18,6 +26,10 @@ pub mod graph_checks {
     use ark_relations::r1cs::{SynthesisError, ConstraintSystem};
     use tracing_subscriber::layer::SubscriberExt;
     use crate::cmp::CmpGadget;
+    use crate::{Uint8Array, BooleanArra, Boolean2DArray, Boolean3DArray};
+
+    mod alloc;
+
 
     // special case where every node should be considered
     pub fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
