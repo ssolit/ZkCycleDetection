@@ -1,5 +1,7 @@
 mod alloc;
 mod cmp;
+mod hashing;
+mod hash_test;
 
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
