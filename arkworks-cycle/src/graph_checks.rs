@@ -3,8 +3,7 @@ mod cmp;
 
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
-    // prelude::{Boolean, EqGadget, AllocVar},
-    prelude::{Boolean, EqGadget},
+    prelude::{Boolean, EqGadget, AllocVar},
     uint8::UInt8
 };
 use ark_relations::r1cs::{SynthesisError};
