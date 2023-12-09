@@ -1,11 +1,16 @@
 use std::borrow::Borrow;
 
 use ark_ff::PrimeField;
-use ark_r1cs_std::{prelude::{AllocVar, AllocationMode}, boolean::Boolean, uint8::UInt8};
+use ark_r1cs_std::{
+    boolean::Boolean,
+    prelude::{AllocVar, AllocationMode},
+    uint8::UInt8,
+};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 
-use crate::graph_checks::{Uint8Array, BooleanArray, Boolean2DArray, Boolean3DArray};
+use crate::graph_checks::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
 
+// Allocates memory for Uint8Array in our constrains sytem
 impl<const N: usize, F: PrimeField> AllocVar<[u8; N], F> for Uint8Array<N, F> {
     fn new_variable<T: Borrow<[u8; N]>>(
         cs: impl Into<Namespace<F>>,
@@ -21,7 +26,7 @@ impl<const N: usize, F: PrimeField> AllocVar<[u8; N], F> for Uint8Array<N, F> {
         let contraint_array = Uint8Array(array);
         Ok(contraint_array)
     }
-} 
+}
 
 impl<const N: usize, F: PrimeField> AllocVar<[bool; N], F> for BooleanArray<N, F> {
     fn new_variable<T: Borrow<[bool; N]>>(
@@ -38,8 +43,7 @@ impl<const N: usize, F: PrimeField> AllocVar<[bool; N], F> for BooleanArray<N, F
         let contraint_array = BooleanArray(array);
         Ok(contraint_array)
     }
-} 
-
+}
 
 impl<const N: usize, F: PrimeField> AllocVar<[[bool; N]; N], F> for Boolean2DArray<N, F> {
     fn new_variable<T: Borrow<[[bool; N]; N]>>(
@@ -58,10 +62,11 @@ impl<const N: usize, F: PrimeField> AllocVar<[[bool; N]; N], F> for Boolean2DArr
         }
         Ok(contraint_array)
     }
-} 
+}
 
-
-impl<const N: usize, const M: usize, F: PrimeField> AllocVar<[[[bool; N]; N]; M], F> for Boolean3DArray<N, M, F> {
+impl<const N: usize, const M: usize, F: PrimeField> AllocVar<[[[bool; N]; N]; M], F>
+    for Boolean3DArray<N, M, F>
+{
     fn new_variable<T: Borrow<[[[bool; N]; N]; M]>>(
         cs: impl Into<Namespace<F>>,
         f: impl FnOnce() -> Result<T, SynthesisError>,
@@ -75,10 +80,11 @@ impl<const N: usize, const M: usize, F: PrimeField> AllocVar<[[[bool; N]; N]; M]
         for (k, nsqaure) in value.into_iter().enumerate() {
             for (i, row) in nsqaure.into_iter().enumerate() {
                 for (j, cell) in row.into_iter().enumerate() {
-                    contraint_array.0[k][i][j] = Boolean::new_variable(cs.clone(), || Ok(cell), mode)?;
+                    contraint_array.0[k][i][j] =
+                        Boolean::new_variable(cs.clone(), || Ok(cell), mode)?;
                 }
             }
         }
         Ok(contraint_array)
     }
-} 
+}

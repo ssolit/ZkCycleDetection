@@ -1,7 +1,12 @@
 use ark_ff::PrimeField;
-use ark_r1cs_std::{prelude::{Boolean, EqGadget}, R1CSVar, uint8::UInt8, ToBitsGadget};
+use ark_r1cs_std::{
+    prelude::{Boolean, EqGadget},
+    uint8::UInt8,
+    R1CSVar, ToBitsGadget,
+};
 use ark_relations::r1cs::SynthesisError;
 
+// TODO: Try to understand
 pub trait CmpGadget<ConstraintF: PrimeField>: R1CSVar<ConstraintF> + EqGadget<ConstraintF> {
     #[inline]
     fn is_geq(&self, other: &Self) -> Result<Boolean<ConstraintF>, SynthesisError> {
@@ -25,7 +30,7 @@ pub trait CmpGadget<ConstraintF: PrimeField>: R1CSVar<ConstraintF> + EqGadget<Co
         self.is_leq(other).map(|b| b.not())
     }
 
-    fn is_lt(&self, other: &Self) -> Result<Boolean<ConstraintF>, SynthesisError>; 
+    fn is_lt(&self, other: &Self) -> Result<Boolean<ConstraintF>, SynthesisError>;
 }
 
 impl<ConstraintF: PrimeField> CmpGadget<ConstraintF> for UInt8<ConstraintF> {

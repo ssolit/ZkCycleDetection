@@ -15,7 +15,6 @@ use crate::graph_checks::cmp;
 use crate::graph_checks::Boolean2DArray;
 use ark_r1cs_std::alloc::AllocVar;
 
-
 //construct the hash of a boolean vector
 // 1. Generate Params 2. Preprocess matrix 3. create sponge
 fn hasher<const N: usize, ConstraintF: PrimeField>(
@@ -28,6 +27,7 @@ fn hasher<const N: usize, ConstraintF: PrimeField>(
     Ok(hash)
 }
 
+// getting the params and creating a new sponge object, absorbing a single boolean vector
 pub fn sponge_create<ConstraintF: PrimeField>(
     input: &Vec<bool>,
 ) -> Result<PoseidonSponge<Fr>, SynthesisError> {
@@ -39,11 +39,13 @@ pub fn sponge_create<ConstraintF: PrimeField>(
     Ok(sponge1)
 }
 
+//squeezes a single field element (hash) from an existing sponge with data
 pub fn squeeze_sponge(sponge: &mut PoseidonSponge<Fr>) -> Result<Vec<Fr>, SynthesisError> {
     let squeeze = sponge.squeeze_native_field_elements(1);
     Ok(squeeze.to_vec())
 }
 // Takes in a 2D Boolean array (representing an adjacency matrix) and flattens it into a boolean vector
+//TODO: Implement bit-packing
 pub fn matrix_flattener<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
 ) -> Result<Vec<bool>, SynthesisError> {
@@ -764,7 +766,6 @@ pub(crate) fn poseidon_parameters_for_test<F: PrimeField>() -> PoseidonConfig<F>
     }
 }
 
-
 #[test]
 fn mod_gen_hash_test() {
     use ark_bls12_381::Fq as F;
@@ -881,7 +882,7 @@ fn test_hashing_inverted_matrices() {
 #[test]
 fn test_hashing_large_identical_matrices() {
     use ark_bls12_381::Fq as F;
-    const N: usize = 50; // Large size
+    const N: usize = 100; // Large size
     let mut adj_matrix_1 = [[false; N]; N];
     let mut adj_matrix_2 = [[false; N]; N];
 
