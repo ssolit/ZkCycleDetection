@@ -1,6 +1,6 @@
-#![allow(unused_variables)]
-#![allow(unused_imports)]
-#![allow(dead_code)]
+// #![allow(unused_variables)]
+// #![allow(unused_imports)]
+// #![allow(dead_code)]
 
 use ark_groth16::{Groth16, prepare_verifying_key, Proof};
 use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
@@ -17,13 +17,15 @@ use ark_std::{
 
 use ark_serialize::{Read, Write, CanonicalSerialize, CanonicalDeserialize};
 use ark_std::io;
+use ark_std::fs::File;
 use ark_std::error::Error;
 use ark_bls12_381::Bls12_381;
 
-mod alloc;
 mod graph_checks;
-use crate::graph_checks::graph_checks::{check_topo_sort, check_subgraph_topo_sort, check_multi_subgraph_topo_sort};
 use crate::graph_checks::{Uint8Array, BooleanArray, Boolean2DArray, Boolean3DArray};
+use crate::graph_checks::{check_topo_sort, check_subgraph_topo_sort, check_multi_subgraph_topo_sort};
+// use crate::graph_checks::alloc;
+
 use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
 use ark_r1cs_std::alloc::AllocVar;
 
@@ -56,18 +58,18 @@ where
     E: Pairing,
 {
     // define the circuit and inputs
-    // let cs = ConstraintSystem::<Bls12_381::Fq>::new_ref();
+    let cs = ConstraintSystem::<Bls12_381::Fq>::new_ref();
 
-    // // generate the proof
-    // let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
-    // let (pk, vk) = Groth16::<E>::setup(cs, &mut rng).unwrap();
-    // let pvk = prepare_verifying_key::<E>(&vk);
-    // let proof = Groth16::<E>::prove(
-    //     &pk,
-    //     cs,
-    //     &mut rng,
-    // )
-    // .unwrap();
+    // generate the proof
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    let (pk, vk) = Groth16::<E>::setup(cs, &mut rng).unwrap();
+    let pvk = prepare_verifying_key::<E>(&vk);
+    let proof = Groth16::<E>::prove(
+        &pk,
+        cs,
+        &mut rng,
+    )
+    .unwrap();
 
     // assert!(Groth16::<E>::verify_with_processed_vk(&pvk, &[c], &proof).unwrap());
     // assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &[a], &proof).unwrap());

@@ -4,7 +4,7 @@ use ark_ff::PrimeField;
 use ark_r1cs_std::{prelude::{AllocVar, AllocationMode}, boolean::Boolean, uint8::UInt8};
 use ark_relations::r1cs::{Namespace, SynthesisError};
 
-use crate::{Uint8Array, BooleanArray, Boolean2DArray, Boolean3DArray};
+use crate::graph_checks::{Uint8Array, BooleanArray, Boolean2DArray, Boolean3DArray};
 
 impl<const N: usize, F: PrimeField> AllocVar<[u8; N], F> for Uint8Array<N, F> {
     fn new_variable<T: Borrow<[u8; N]>>(
