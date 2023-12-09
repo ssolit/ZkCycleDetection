@@ -13,8 +13,6 @@ pub struct BooleanArray<const N: usize, ConstraintF: PrimeField>([Boolean<Constr
 pub struct Boolean2DArray<const N: usize, ConstraintF: PrimeField>([[Boolean<ConstraintF>; N]; N]);
 pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeField>([[[Boolean<ConstraintF>; N]; N]; M]);
 
-mod alloc;
-
 pub mod graph_checks {
 
     use crate::{};
@@ -28,7 +26,7 @@ pub mod graph_checks {
     use crate::cmp::CmpGadget;
     use crate::{Uint8Array, BooleanArra, Boolean2DArray, Boolean3DArray};
 
-    mod alloc;
+    use alloc;
 
 
     // special case where every node should be considered
@@ -91,7 +89,7 @@ pub mod graph_checks {
         subgraph_nodes: &BooleanArray<N, ConstraintF>,
         topo: &Uint8Array<N, ConstraintF>,
     ) -> Result<(), SynthesisError> {
-        let combined_adj_matrix = &mut Boolean2DArray(adj_matrix_array.0[0].clone());
+        let combined_adj_matrix: Boolean2DArray<N, ConstraintF> = &mut Boolean2DArray<N, ConstraintF>(adj_matrix_array.0[0].clone());
 
         for k in 1..M {
             for i in 0..N {
