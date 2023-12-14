@@ -17,7 +17,7 @@ use ark_r1cs_std::alloc::AllocVar;
 
 //construct the hash of a boolean vector
 // 1. Generate Params 2. Preprocess matrix 3. create sponge
-fn hasher<const N: usize, ConstraintF: PrimeField>(
+pub fn hasher<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
 ) -> Result<Vec<Fr>, SynthesisError> {
     let preprocess = matrix_flattener(&adj_matrix).unwrap();

@@ -1,8 +1,9 @@
 mod alloc;
 mod cmp;
-mod hashing;
+pub mod hashing;
 
 use crate::graph_checks::cmp::CmpGadget;
+use ark_bls12_381::fr::Fr;
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
     prelude::{AllocVar, Boolean, EqGadget},
@@ -21,9 +22,10 @@ pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeFiel
 pub fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
+    input_hash: &Vec<Fr>,
 ) -> Result<(), SynthesisError> {
     let subgraph_nodes = &BooleanArray([(); N].map(|_| Boolean::constant(true)));
-    check_subgraph_topo_sort(adj_matrix, subgraph_nodes, topo)
+    check_subgraph_topo_sort(adj_matrix, subgraph_nodes, topo, input_hash)
 }
 
 // Challenge: can't leak the size of the subgraph
@@ -33,6 +35,7 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     subgraph_nodes: &BooleanArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
+    input_hash: &Vec<Fr>,
 ) -> Result<(), SynthesisError> {
     // check that there are no duplicate numbers in the toposort
     for i in 0..N {
@@ -64,10 +67,11 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
                 .and(reciever_in_subgraph)?
                 .and(&wrong_order)?;
             let _ = backwards_edge.enforce_equal(&Boolean::FALSE);
-
-            // output starting node for proof?
         }
     }
+    //check the public inputted hash against adj_matrix
+    let real_hash = hashing::hasher(&adj_matrix).unwrap();
+    assert_eq!(real_hash, *input_hash);
     Ok(())
 }
 
@@ -87,8 +91,9 @@ pub fn check_multi_subgraph_topo_sort<const N: usize, const M: usize, Constraint
             }
         }
     }
-
-    check_subgraph_topo_sort(combined_adj_matrix, subgraph_nodes, topo)
+    //check the public inputted hash against adj_matrix
+    let real_hash = hashing::hasher(&combined_adj_matrix).unwrap();
+    check_subgraph_topo_sort(combined_adj_matrix, subgraph_nodes, topo, &real_hash)
 }
 
 #[test]
@@ -114,8 +119,9 @@ fn valid_topo_sort() {
 
     let cs = ConstraintSystem::<F>::new_ref();
     let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let hash = hashing::hasher(&adj_matrix_var).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
-    check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
+    check_topo_sort(&adj_matrix_var, &topo_var, &hash).unwrap();
     // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
