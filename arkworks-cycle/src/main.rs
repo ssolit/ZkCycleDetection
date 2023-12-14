@@ -34,6 +34,14 @@ use crate::graph_checks::hashing::hasher;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
 
+
+
+
+
+use ark_bls12_381::fr::Fr;
+
+
+
 fn main() {
     //function called by cargo run
     match test_prove_and_verify::<Bls12_381>() {
@@ -47,7 +55,7 @@ fn main() {
 struct MyGraphCircuitStruct<const N: usize> {
     adj_matrix: [[bool; N]; N],
     toposort: [u8; N],
-    // pub input_hash: Vec<Fr>,
+    adj_hash: Fr,
 }
 
 // implementing cloning for MyGraphCircuitStruct
@@ -56,7 +64,7 @@ impl<const N: usize> Clone for MyGraphCircuitStruct<N> {
         Self {
             adj_matrix: self.adj_matrix.clone(),
             toposort: self.toposort.clone(),
-            // pub input_hash: self.input_hash.clone(),
+            adj_hash: self.adj_hash.clone(),
         }
     }
 }
@@ -73,7 +81,8 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
             Boolean2DArray::new_witness(cs.clone(), || Ok(self.adj_matrix)).unwrap();
         let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(self.toposort)).unwrap();
         // TODO: Get the public input hash
-        check_topo_sort(&adj_matrix_var, &topo_var, &input_hash).unwrap();
+        let adj_hash_var = Fr::new_input(cs.clone(), Ok(self.adj_hash)).unwrap();
+        check_topo_sort(&adj_matrix_var, &topo_var, &adj_hash_var).unwrap();
         println!("Number of constraints: {}", cs.num_constraints());
 
         Ok(())
@@ -86,6 +95,8 @@ fn test_prove_and_verify<E>() -> Result<(), Box<dyn Error>>
 where
     E: Pairing,
 {
+    use ark_bls12_381::Fr;
+    let cs = ConstraintSystem::<Fr>::new_ref();
     //defining the inputs
     let adj_matrix = [
         [false, true, true, false],   //               [0]
@@ -94,26 +105,28 @@ where
         [false, false, false, false], //
     ];
     let topological_sort = [0, 1, 2, 3];
+
+    // Convert the adjacency matrix to Boolean2DArray
+    let adj_matrix_boolean_2D_array =
+        Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let adj_hash_result = hasher(&adj_matrix_boolean_2D_array);
+
+    let adj_hash = match adj_hash_result {
+        Ok(hash_vec) => hash_vec[0],
+        Err(e) => return Err(Box::new(e)),
+    };
+
     let circuit_inputs: MyGraphCircuitStruct<4> = MyGraphCircuitStruct {
         adj_matrix: adj_matrix,
         toposort: topological_sort,
-        adj_hash: hash,
+        adj_hash: adj_hash,
     };
     //TODO: Unwrap circuit_inputs to just grab the adj_matrix
     // Create a constraint system
-    use ark_bls12_381::Fr;
-    let cs = ConstraintSystem::<Fr>::new_ref();
+  
+    
 
-    // Convert the adjacency matrix to Boolean2DArray
-    let adj_matrix_var =
-        Boolean2DArray::new_witness(cs.clone(), || Ok(circuit_inputs.adj_matrix)).unwrap();
-
-    let adj_hash_result = hasher(&adj_matrix_var);
-
-    let adj_hash = match adj_hash_result {
-        Ok(hash_vec) => hash_vec,
-        Err(e) => return Err(Box::new(e)),
-    };
+    
 
     // generate the proof
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
@@ -122,7 +135,7 @@ where
     let proof = Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
 
     // assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &adj_hash[..], &proof).unwrap());
-    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &adj_hash[..], &proof).unwrap());
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
 
     //TODO: Make failing test case with wrong hash
     let false_adj_matrix = [
@@ -159,7 +172,7 @@ where
     // Generate and write proof
     // Example usage with specified types and size N
     let start = Instant::now();
-    write_proof_to_file::<Bls12_381, 4>(&adj_matrix, &topological_sort, "./proof.bin")?;
+    write_proof_to_file::<Bls12_381, 4>(&adj_matrix, &topological_sort, "./proof.bin", &adj_hash)?;
     let duration = start.elapsed();
     println!("Execution time: {:?}", duration);
 
@@ -175,11 +188,13 @@ fn write_proof_to_file<E: Pairing, const N: usize>(
     adj_matrix: &[[bool; N]; N],
     toposort: &[u8; N],
     file_path: &str,
+    adj_hash: &Fr,
 ) -> Result<(), io::Error> {
     //create circuit inputs struct:
     let circuit_inputs: MyGraphCircuitStruct<N> = MyGraphCircuitStruct {
         adj_matrix: *adj_matrix,
         toposort: *toposort,
+        adj_hash: *adj_hash,
     };
 
     // Generate the proof using the circuit and inputs
