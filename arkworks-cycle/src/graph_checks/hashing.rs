@@ -1,9 +1,11 @@
 use ark_bls12_381::fr::Fr;
 use ark_bls12_381::Fq as F;
 use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig, PoseidonSponge};
+// use ark_crypto_primitives::sponge::poseidon::constraints::{PoseidonSpongeVar};
 use ark_crypto_primitives::sponge::{
     Absorb, AbsorbWithLength, CryptographicSponge, FieldBasedCryptographicSponge,
 };
+
 use ark_crypto_primitives::{absorb, collect_sponge_bytes, collect_sponge_field_elements};
 use ark_ff::{One, PrimeField, UniformRand};
 use ark_r1cs_std::boolean::Boolean;
@@ -17,6 +19,29 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use std::str::FromStr;
 
+
+pub fn hasherVar<const N: usize, ConstraintF: PrimeField>(
+    adj_matrix: &Boolean2DArray<N, ConstraintF>,
+    cs: ConstraintSystemRef<ConstraintF>,
+) -> Result<Vec<FpVar<ConstraintF>>, SynthesisError> {
+    let sponge_param = poseidon_parameters_for_test();
+    let mut sponge = PoseidonSpongeVar::<ConstraintF>::new(cs, &sponge_param);
+    let flattened_matrix = matrix_flattener(&adj_matrix).unwrap();
+    sponge.absorb(&flattened_matrix);
+
+    // use ark_std::test_rng;
+    // let mut rng = test_rng();
+    // let absorb1: Vec<_> = (0..256).map(|_| ConstraintF::rand(&mut rng)).collect();
+    // let absorb1_var: Vec<_> = absorb1
+    //         .iter()
+    //         .map(|v| FpVar::new_input(ns!(cs, "absorb1"), || Ok(*v)).unwrap())
+    //         .collect();
+    // sponge.absorb(&absorb1_var);
+
+    let hash = sponge.squeeze_bits(1)?;
+    Ok(hash)
+}
+
 //construct the hash of a boolean vector
 // 1. Generate Params 2. Preprocess matrix 3. create sponge
 pub fn hasher<const N: usize, ConstraintF: PrimeField>(
@@ -25,13 +50,14 @@ pub fn hasher<const N: usize, ConstraintF: PrimeField>(
     let preprocess = matrix_flattener(&adj_matrix).unwrap();
     let mut sponge = sponge_create::<ConstraintF>(&preprocess).unwrap();
     let hash = squeeze_sponge(&mut sponge).unwrap();
+    
 
     Ok(hash)
 }
 
 // getting the params and creating a new sponge object, absorbing a single boolean vector
 pub fn sponge_create<ConstraintF: PrimeField>(
-    input: &Vec<FpVar<ConstraintF>>,
+    input: &Vec<Boolean<ConstraintF>>,
 ) -> Result<PoseidonSponge<ConstraintF>, SynthesisError> {
     let sponge_param = poseidon_parameters_for_test();
     // let elem = Fr::rand(&mut rng);
@@ -43,7 +69,7 @@ pub fn sponge_create<ConstraintF: PrimeField>(
 
 //squeezes a single field element (hash) from an existing sponge with data
 pub fn squeeze_sponge<ConstraintF: PrimeField>(sponge: &mut PoseidonSponge<ConstraintF>) -> Result<Vec<FpVar<ConstraintF>>, SynthesisError> {
-    let squeeze = sponge.squeeze_native_field_elements(1);
+    let squeeze = sponge.squeeze_bits(1);
     Ok(squeeze.to_vec())
 }
 // Takes in a 2D Boolean array (representing an adjacency matrix) and flattens it into a boolean vector
@@ -949,4 +975,592 @@ fn test_hashing_large_sparse_matrices() {
     let hash2 = hasher(&adj_matrix_var_2).unwrap();
 
     assert_eq!(hash1, hash2);
+}
+
+
+
+
+
+
+
+use ark_crypto_primitives::sponge::DuplexSpongeMode;
+use ark_r1cs_std::uint8::UInt8;
+use ark_relations::r1cs::ConstraintSystemRef;
+use ark_crypto_primitives::sponge::FieldElementSize;
+use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
+use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::ToBitsGadget;
+use ark_r1cs_std::ToBytesGadget;
+use ark_r1cs_std::fields::nonnative::AllocatedNonNativeFieldVar;
+use ark_r1cs_std::fields::fp::AllocatedFp;
+use ark_relations::r1cs::LinearCombination;
+use ark_r1cs_std::fields::nonnative::params::OptimizationType;
+use ark_r1cs_std::fields::nonnative::params::get_params;
+use ark_relations::lc;
+use ark_r1cs_std::ToConstraintFieldGadget;
+
+
+#[derive(Clone)]
+pub struct PoseidonSpongeVar<F: PrimeField> {
+    /// Constraint system
+    pub cs: ConstraintSystemRef<F>,
+
+    /// Sponge Parameters
+    pub parameters: PoseidonConfig<F>,
+
+    // Sponge State
+    /// The sponge's state
+    pub state: Vec<FpVar<F>>,
+    /// The mode
+    pub mode: DuplexSpongeMode,
+}
+
+impl<F: PrimeField> SpongeWithGadget<F> for PoseidonSponge<F> {
+    type Var = PoseidonSpongeVar<F>;
+}
+
+impl<F: PrimeField> PoseidonSpongeVar<F> {
+    
+    fn apply_s_box(
+        &self,
+        state: &mut [FpVar<F>],
+        is_full_round: bool,
+    ) -> Result<(), SynthesisError> {
+        // Full rounds apply the S Box (x^alpha) to every element of state
+        if is_full_round {
+            for state_item in state.iter_mut() {
+                *state_item = state_item.pow_by_constant(&[self.parameters.alpha])?;
+            }
+        }
+        // Partial rounds apply the S Box (x^alpha) to just the first element of state
+        else {
+            state[0] = state[0].pow_by_constant(&[self.parameters.alpha])?;
+        }
+
+        Ok(())
+    }
+
+    
+    fn apply_ark(&self, state: &mut [FpVar<F>], round_number: usize) -> Result<(), SynthesisError> {
+        for (i, state_elem) in state.iter_mut().enumerate() {
+            *state_elem += self.parameters.ark[round_number][i];
+        }
+        Ok(())
+    }
+
+    
+    fn apply_mds(&self, state: &mut [FpVar<F>]) -> Result<(), SynthesisError> {
+        let mut new_state = Vec::new();
+        let zero = FpVar::<F>::zero();
+        for i in 0..state.len() {
+            let mut cur = zero.clone();
+            for (j, state_elem) in state.iter().enumerate() {
+                let term = state_elem * self.parameters.mds[i][j];
+                cur += &term;
+            }
+            new_state.push(cur);
+        }
+        state.clone_from_slice(&new_state[..state.len()]);
+        Ok(())
+    }
+
+    
+    fn permute(&mut self) -> Result<(), SynthesisError> {
+        let full_rounds_over_2 = self.parameters.full_rounds / 2;
+        let mut state = self.state.clone();
+        for i in 0..full_rounds_over_2 {
+            self.apply_ark(&mut state, i)?;
+            self.apply_s_box(&mut state, true)?;
+            self.apply_mds(&mut state)?;
+        }
+        for i in full_rounds_over_2..(full_rounds_over_2 + self.parameters.partial_rounds) {
+            self.apply_ark(&mut state, i)?;
+            self.apply_s_box(&mut state, false)?;
+            self.apply_mds(&mut state)?;
+        }
+
+        for i in (full_rounds_over_2 + self.parameters.partial_rounds)
+            ..(self.parameters.partial_rounds + self.parameters.full_rounds)
+        {
+            self.apply_ark(&mut state, i)?;
+            self.apply_s_box(&mut state, true)?;
+            self.apply_mds(&mut state)?;
+        }
+
+        self.state = state;
+        Ok(())
+    }
+
+    
+    fn absorb_internal(
+        &mut self,
+        mut rate_start_index: usize,
+        elements: &[FpVar<F>],
+    ) -> Result<(), SynthesisError> {
+        let mut remaining_elements = elements;
+        loop {
+            // if we can finish in this call
+            if rate_start_index + remaining_elements.len() <= self.parameters.rate {
+                for (i, element) in remaining_elements.iter().enumerate() {
+                    self.state[self.parameters.capacity + i + rate_start_index] += element;
+                }
+                self.mode = DuplexSpongeMode::Absorbing {
+                    next_absorb_index: rate_start_index + remaining_elements.len(),
+                };
+
+                return Ok(());
+            }
+            // otherwise absorb (rate - rate_start_index) elements
+            let num_elements_absorbed = self.parameters.rate - rate_start_index;
+            for (i, element) in remaining_elements
+                .iter()
+                .enumerate()
+                .take(num_elements_absorbed)
+            {
+                self.state[self.parameters.capacity + i + rate_start_index] += element;
+            }
+            self.permute()?;
+            // the input elements got truncated by num elements absorbed
+            remaining_elements = &remaining_elements[num_elements_absorbed..];
+            rate_start_index = 0;
+        }
+    }
+
+    // Squeeze |output| many elements. This does not end in a squeeze
+    
+    fn squeeze_internal(
+        &mut self,
+        mut rate_start_index: usize,
+        output: &mut [FpVar<F>],
+    ) -> Result<(), SynthesisError> {
+        let mut remaining_output = output;
+        loop {
+            // if we can finish in this call
+            if rate_start_index + remaining_output.len() <= self.parameters.rate {
+                remaining_output.clone_from_slice(
+                    &self.state[self.parameters.capacity + rate_start_index
+                        ..(self.parameters.capacity + remaining_output.len() + rate_start_index)],
+                );
+                self.mode = DuplexSpongeMode::Squeezing {
+                    next_squeeze_index: rate_start_index + remaining_output.len(),
+                };
+                return Ok(());
+            }
+            // otherwise squeeze (rate - rate_start_index) elements
+            let num_elements_squeezed = self.parameters.rate - rate_start_index;
+            remaining_output[..num_elements_squeezed].clone_from_slice(
+                &self.state[self.parameters.capacity + rate_start_index
+                    ..(self.parameters.capacity + num_elements_squeezed + rate_start_index)],
+            );
+
+            // Unless we are done with squeezing in this call, permute.
+            if remaining_output.len() != self.parameters.rate {
+                self.permute()?;
+            }
+            // Repeat with updated output slices and rate start index
+            remaining_output = &mut remaining_output[num_elements_squeezed..];
+            rate_start_index = 0;
+        }
+    }
+}
+
+impl<F: PrimeField> CryptographicSpongeVar<F, PoseidonSponge<F>> for PoseidonSpongeVar<F> {
+    type Parameters = PoseidonConfig<F>;
+
+    fn new(cs: ConstraintSystemRef<F>, parameters: &PoseidonConfig<F>) -> Self {
+        let zero = FpVar::<F>::zero();
+        let state = vec![zero; parameters.rate + parameters.capacity];
+        let mode = DuplexSpongeMode::Absorbing {
+            next_absorb_index: 0,
+        };
+
+        Self {
+            cs,
+            parameters: parameters.clone(),
+            state,
+            mode,
+        }
+    }
+
+    
+    fn cs(&self) -> ConstraintSystemRef<F> {
+        self.cs.clone()
+    }
+    fn absorb(&mut self, input: &impl AbsorbGadget<F>) -> Result<(), SynthesisError> {
+        let input = input.to_sponge_field_elements()?;
+        if input.is_empty() {
+            return Ok(());
+        }
+
+        match self.mode {
+            DuplexSpongeMode::Absorbing { next_absorb_index } => {
+                let mut absorb_index = next_absorb_index;
+                if absorb_index == self.parameters.rate {
+                    self.permute()?;
+                    absorb_index = 0;
+                }
+                self.absorb_internal(absorb_index, input.as_slice())?;
+            }
+            DuplexSpongeMode::Squeezing {
+                next_squeeze_index: _,
+            } => {
+                self.permute()?;
+                self.absorb_internal(0, input.as_slice())?;
+            }
+        };
+
+        Ok(())
+    }
+
+    
+    fn squeeze_bytes(&mut self, num_bytes: usize) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        let usable_bytes = ((F::MODULUS_BIT_SIZE - 1) / 8) as usize;
+
+        let num_elements = (num_bytes + usable_bytes - 1) / usable_bytes;
+        let src_elements = self.squeeze_field_elements(num_elements)?;
+
+        let mut bytes: Vec<UInt8<F>> = Vec::with_capacity(usable_bytes * num_elements);
+        for elem in &src_elements {
+            bytes.extend_from_slice(&elem.to_bytes()?[..usable_bytes]);
+        }
+
+        bytes.truncate(num_bytes);
+        Ok(bytes)
+    }
+
+    
+    fn squeeze_bits(&mut self, num_bits: usize) -> Result<Vec<Boolean<F>>, SynthesisError> {
+        let usable_bits = (F::MODULUS_BIT_SIZE - 1) as usize;
+
+        let num_elements = (num_bits + usable_bits - 1) / usable_bits;
+        let src_elements = self.squeeze_field_elements(num_elements)?;
+
+        let mut bits: Vec<Boolean<F>> = Vec::with_capacity(usable_bits * num_elements);
+        for elem in &src_elements {
+            bits.extend_from_slice(&elem.to_bits_le()?[..usable_bits]);
+        }
+
+        bits.truncate(num_bits);
+        Ok(bits)
+    }
+
+    
+    fn squeeze_field_elements(
+        &mut self,
+        num_elements: usize,
+    ) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        let zero = FpVar::zero();
+        let mut squeezed_elems = vec![zero; num_elements];
+        match self.mode {
+            DuplexSpongeMode::Absorbing {
+                next_absorb_index: _,
+            } => {
+                self.permute()?;
+                self.squeeze_internal(0, &mut squeezed_elems)?;
+            }
+            DuplexSpongeMode::Squeezing { next_squeeze_index } => {
+                let mut squeeze_index = next_squeeze_index;
+                if squeeze_index == self.parameters.rate {
+                    self.permute()?;
+                    squeeze_index = 0;
+                }
+                self.squeeze_internal(squeeze_index, &mut squeezed_elems)?;
+            }
+        };
+
+        Ok(squeezed_elems)
+    }
+}
+
+pub trait AbsorbGadget<F: PrimeField> {
+    /// Converts the object into a list of bytes that can be absorbed by a `CryptographicSpongeVar`.
+    /// return the list.
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError>;
+
+    /// Specifies the conversion into a list of bytes for a batch.
+    fn batch_to_sponge_bytes(batch: &[Self]) -> Result<Vec<UInt8<F>>, SynthesisError>
+    where
+        Self: Sized,
+    {
+        let mut result = Vec::new();
+        for item in batch {
+            result.append(&mut (item.to_sponge_bytes()?))
+        }
+        Ok(result)
+    }
+
+    /// Converts the object into field elements that can be absorbed by a `CryptographicSpongeVar`.
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<F>>, SynthesisError>;
+
+    /// Specifies the conversion into a list of field elements for a batch.
+    fn batch_to_sponge_field_elements(batch: &[Self]) -> Result<Vec<FpVar<F>>, SynthesisError>
+    where
+        Self: Sized,
+    {
+        let mut output = Vec::new();
+        for absorbable in batch {
+            output.append(&mut absorbable.to_sponge_field_elements()?);
+        }
+
+        Ok(output)
+    }
+}
+
+pub trait CryptographicSpongeVar<CF: PrimeField, S: CryptographicSponge>: Clone {
+    /// Parameters used by the sponge.
+    type Parameters;
+
+    /// Initialize a new instance of the sponge.
+    fn new(cs: ConstraintSystemRef<CF>, params: &Self::Parameters) -> Self;
+
+    /// Returns a ref to the underlying constraint system the sponge is operating in.
+    fn cs(&self) -> ConstraintSystemRef<CF>;
+
+    /// Absorb an input into the sponge.
+    fn absorb(&mut self, input: &impl AbsorbGadget<CF>) -> Result<(), SynthesisError>;
+
+    /// Squeeze `num_bytes` bytes from the sponge.
+    fn squeeze_bytes(&mut self, num_bytes: usize) -> Result<Vec<UInt8<CF>>, SynthesisError>;
+
+    /// Squeeze `num_bit` bits from the sponge.
+    fn squeeze_bits(&mut self, num_bits: usize) -> Result<Vec<Boolean<CF>>, SynthesisError>;
+
+    // /// Squeeze `sizes.len()` nonnative field elements from the sponge, where the `i`-th element of
+    // /// the output has size `sizes[i]`.
+    // fn squeeze_nonnative_field_elements_with_sizes<F: PrimeField>(
+    //     &mut self,
+    //     sizes: &[FieldElementSize],
+    // ) -> Result<(Vec<NonNativeFieldVar<F, CF>>, Vec<Vec<Boolean<CF>>>), SynthesisError> {
+    //     if sizes.len() == 0 {
+    //         return Ok((Vec::new(), Vec::new()));
+    //     }
+
+    //     let cs = self.cs();
+
+    //     let mut total_bits = 0usize;
+    //     for size in sizes {
+    //         total_bits += size.num_bits::<F>();
+    //     }
+
+    //     let bits = self.squeeze_bits(total_bits)?;
+
+    //     let mut dest_bits = Vec::<Vec<Boolean<CF>>>::with_capacity(sizes.len());
+
+    //     let mut bits_window = bits.as_slice();
+    //     for size in sizes {
+    //         let num_bits = size.num_bits::<F>();
+    //         let nonnative_bits_le = bits_window[..num_bits].to_vec();
+    //         bits_window = &bits_window[num_bits..];
+
+    //         dest_bits.push(nonnative_bits_le);
+    //     }
+
+    //     let dest_gadgets = bits_le_to_nonnative(cs, dest_bits.iter())?;
+
+    //     Ok((dest_gadgets, dest_bits))
+    // }
+
+    // /// Squeeze `num_elements` nonnative field elements from the sponge.
+    // fn squeeze_nonnative_field_elements<F: PrimeField>(
+    //     &mut self,
+    //     num_elements: usize,
+    // ) -> Result<(Vec<NonNativeFieldVar<F, CF>>, Vec<Vec<Boolean<CF>>>), SynthesisError> {
+    //     self.squeeze_nonnative_field_elements_with_sizes::<F>(
+    //         vec![FieldElementSize::Full; num_elements].as_slice(),
+    //     )
+    // }
+
+    // /// Creates a new sponge with applied domain separation.
+    // fn fork(&self, domain: &[u8]) -> Result<Self, SynthesisError> {
+    //     let mut new_sponge = self.clone();
+
+    //     let mut input = Absorb::to_sponge_bytes_as_vec(&domain.len());
+    //     input.extend_from_slice(domain);
+
+    //     let elems: Vec<CF> = input.to_sponge_field_elements_as_vec();
+    //     let elem_vars = elems
+    //         .into_iter()
+    //         .map(|elem| FpVar::Constant(elem))
+    //         .collect::<Vec<_>>();
+
+    //     new_sponge.absorb(&elem_vars)?;
+
+    //     Ok(new_sponge)
+    // }
+
+    /// Squeeze `num_elements` field elements from the sponge.
+    fn squeeze_field_elements(
+        &mut self,
+        num_elements: usize,
+    ) -> Result<Vec<FpVar<CF>>, SynthesisError>;
+}
+
+/// Enables simple access to the "gadget" version of the sponge.
+/// Simplifies trait bounds in downstream generic code.
+pub trait SpongeWithGadget<CF: PrimeField>: CryptographicSponge {
+    /// The gadget version of `Self`.
+    type Var: CryptographicSpongeVar<CF, Self>;
+}
+
+pub fn bits_le_to_nonnative<'a, F: PrimeField, CF: PrimeField>(
+    cs: ConstraintSystemRef<CF>,
+    all_nonnative_bits_le: impl IntoIterator<Item = &'a Vec<Boolean<CF>>>,
+) -> Result<Vec<NonNativeFieldVar<F, CF>>, SynthesisError> {
+    let all_nonnative_bits_le = all_nonnative_bits_le.into_iter().collect::<Vec<_>>();
+    if all_nonnative_bits_le.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut max_nonnative_bits = 0usize;
+    for bits in &all_nonnative_bits_le {
+        max_nonnative_bits = max_nonnative_bits.max(bits.len());
+    }
+
+    let mut lookup_table = Vec::<Vec<CF>>::new();
+    let mut cur = F::one();
+    for _ in 0..max_nonnative_bits {
+        let repr = AllocatedNonNativeFieldVar::<F, CF>::get_limbs_representations(
+            &cur,
+            OptimizationType::Constraints,
+        )?;
+        lookup_table.push(repr);
+        cur.double_in_place();
+    }
+
+    let params = get_params(
+        F::MODULUS_BIT_SIZE as usize,
+        CF::MODULUS_BIT_SIZE as usize,
+        OptimizationType::Constraints,
+    );
+
+    let mut output = Vec::with_capacity(all_nonnative_bits_le.len());
+    for nonnative_bits_le in all_nonnative_bits_le {
+        let mut val = vec![CF::zero(); params.num_limbs];
+        let mut lc = vec![LinearCombination::<CF>::zero(); params.num_limbs];
+
+        for (j, bit) in nonnative_bits_le.iter().enumerate() {
+            if bit.value().unwrap_or_default() {
+                for (k, val) in val.iter_mut().enumerate().take(params.num_limbs) {
+                    *val += &lookup_table[j][k];
+                }
+            }
+
+            #[allow(clippy::needless_range_loop)]
+            for k in 0..params.num_limbs {
+                lc[k] = &lc[k] + bit.lc() * lookup_table[j][k];
+            }
+        }
+
+        let mut limbs = Vec::new();
+        for k in 0..params.num_limbs {
+            let gadget =
+                AllocatedFp::new_witness(ark_relations::ns!(cs, "alloc"), || Ok(val[k])).unwrap();
+            lc[k] = lc[k].clone() - (CF::one(), gadget.variable);
+            cs.enforce_constraint(lc!(), lc!(), lc[k].clone()).unwrap();
+            limbs.push(FpVar::<CF>::from(gadget));
+        }
+
+        output.push(NonNativeFieldVar::<F, CF>::Var(
+            AllocatedNonNativeFieldVar::<F, CF> {
+                cs: cs.clone(),
+                limbs,
+                num_of_additions_over_normal_form: CF::zero(),
+                is_in_the_normal_form: true,
+                target_phantom: Default::default(),
+            },
+        ));
+    }
+
+    Ok(output)
+}
+
+impl<F: PrimeField> AbsorbGadget<F> for UInt8<F> {
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        Ok(vec![self.clone()])
+    }
+
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        vec![self.clone()].to_constraint_field()
+    }
+
+    fn batch_to_sponge_field_elements(batch: &[Self]) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        // It's okay to allocate as constant because at circuit-generation time,
+        // the length must be statically known (it cannot vary with the variable assignments).
+        let mut bytes = UInt8::constant_vec((batch.len() as u64).to_le_bytes().as_ref());
+        bytes.extend_from_slice(batch);
+        bytes.to_constraint_field()
+    }
+}
+
+impl<F: PrimeField> AbsorbGadget<F> for Boolean<F> {
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        self.to_bytes()
+    }
+
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        Ok(vec![FpVar::from(self.clone())])
+    }
+}
+
+impl<F: PrimeField> AbsorbGadget<F> for FpVar<F> {
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        self.to_bytes()
+    }
+
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        Ok(vec![self.clone()])
+    }
+
+    fn batch_to_sponge_field_elements(batch: &[Self]) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        Ok(batch.to_vec())
+    }
+}
+
+impl<F: PrimeField, A: AbsorbGadget<F>> AbsorbGadget<F> for &[A] {
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        A::batch_to_sponge_bytes(self)
+    }
+
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        A::batch_to_sponge_field_elements(self)
+    }
+}
+
+impl<F: PrimeField, A: AbsorbGadget<F>> AbsorbGadget<F> for Vec<A> {
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        self.as_slice().to_sponge_bytes()
+    }
+
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        self.as_slice().to_sponge_field_elements()
+    }
+}
+
+impl<F: PrimeField, A: AbsorbGadget<F>> AbsorbGadget<F> for Option<A> {
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        let mut output = Vec::new();
+        output.append(&mut (Boolean::Constant(self.is_some()).to_sponge_bytes()?));
+        if let Some(item) = self {
+            output.append(&mut (item.to_sponge_bytes()?))
+        }
+        Ok(output)
+    }
+
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        let mut output = vec![FpVar::from(Boolean::constant(self.is_some()))];
+        if let Some(absorbable) = self.as_ref() {
+            output.append(&mut absorbable.to_sponge_field_elements()?);
+        }
+        Ok(output)
+    }
+}
+
+impl<F: PrimeField, A: AbsorbGadget<F>> AbsorbGadget<F> for &A {
+    fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {
+        (*self).to_sponge_bytes()
+    }
+
+    fn to_sponge_field_elements(&self) -> Result<Vec<FpVar<F>>, SynthesisError> {
+        (*self).to_sponge_field_elements()
+    }
 }
