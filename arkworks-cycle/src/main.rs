@@ -25,14 +25,14 @@ use ark_std::fs::File;
 use ark_std::io;
 
 
-mod lib;
+mod utils;
 mod graph_checks;
 mod hashing;
 
 use crate::graph_checks::{
     check_multi_subgraph_topo_sort, check_subgraph_topo_sort, check_topo_sort,
 };
-use crate::lib::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
+use crate::utils::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
 // use crate::graph_checks::alloc;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};

@@ -14,20 +14,19 @@ use ark_relations::r1cs::{ConstraintSystem, SynthesisError};
 use ark_std::test_rng;
 use ark_relations::r1cs::ConstraintSystemRef;
 
-use crate::lib::*;
+use crate::utils::*;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use std::str::FromStr;
 
-mod hashing_lib;
-use crate::lib::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
-use crate::hashing::hashing_lib::{PoseidonSpongeVar, CryptographicSpongeVar};
-// use crate::hashing::hashing_lib::poseidon_parameters_for_test;
+mod hashing_utils;
+use crate::utils::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
+use crate::hashing::hashing_utils::{PoseidonSpongeVar, CryptographicSpongeVar};
 
 
 
 // pub use poseidon_parameters_for_test;
-pub use hashing_lib::poseidon_parameters_for_test;
+pub use hashing_utils::poseidon_parameters_for_test;
 
 pub fn hasher_var<const N: usize, ConstraintF: PrimeField>(
     cs: ConstraintSystemRef<ConstraintF>,

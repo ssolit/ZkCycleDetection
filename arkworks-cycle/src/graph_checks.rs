@@ -1,4 +1,4 @@
-use crate::lib::CmpGadget;
+use crate::utils::CmpGadget;
 use ark_bls12_381::fr::Fr;
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
@@ -10,7 +10,7 @@ use ark_relations::r1cs::SynthesisError;
 
 
 use ark_r1cs_std::fields::fp::FpVar;
-use crate::lib::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
+use crate::utils::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
 
 // special case where every node should be considered
 pub fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(

@@ -13,7 +13,7 @@ use ark_r1cs_std::R1CSVar;
 use ark_relations::r1cs::{ConstraintSystem, SynthesisError};
 use ark_std::test_rng;
 
-use crate::lib::*;
+use crate::utils::*;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use std::str::FromStr;
