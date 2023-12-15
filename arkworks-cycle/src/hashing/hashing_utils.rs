@@ -1,42 +1,18 @@
-use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig, PoseidonSponge};
-// use ark_crypto_primitives::sponge::poseidon::constraints::{PoseidonSpongeVar};
 use ark_crypto_primitives::sponge::{
-    CryptographicSponge
+    CryptographicSponge,
+    DuplexSpongeMode,
+    poseidon::{PoseidonConfig, PoseidonSponge},
 };
-
 use ark_ff::{PrimeField};
-use ark_r1cs_std::boolean::Boolean;
-use ark_relations::r1cs::{SynthesisError};
-
-use ark_r1cs_std::fields::fp::FpVar;
-
-use ark_crypto_primitives::sponge::DuplexSpongeMode;
-use ark_r1cs_std::uint8::UInt8;
-use ark_relations::r1cs::ConstraintSystemRef;
-use ark_r1cs_std::fields::FieldVar;
-use ark_r1cs_std::ToBitsGadget;
-use ark_r1cs_std::ToBytesGadget;
-use ark_r1cs_std::ToConstraintFieldGadget;
-
-
-// // getting the params and creating a new sponge object, absorbing a single boolean vector
-// pub fn sponge_create<ConstraintF: PrimeField>(
-//     input: &Vec<bool>,
-// ) -> Result<PoseidonSponge<Fr>, SynthesisError> {
-//     let sponge_param = poseidon_parameters_for_test();
-//     // let elem = Fr::rand(&mut rng);
-//     let mut sponge1 = PoseidonSponge::<Fr>::new(&sponge_param);
-//     sponge1.absorb(input);
-
-//     Ok(sponge1)
-// }
-
-// //squeezes a single field element (hash) from an existing sponge with data
-// pub fn squeeze_sponge(sponge: &mut PoseidonSponge<Fr>) -> Result<Vec<Fr>, SynthesisError> {
-//     let squeeze = sponge.squeeze_native_field_elements(1);
-//     Ok(squeeze.to_vec())
-// }
-
+use ark_r1cs_std::{
+    boolean::Boolean,
+    fields::{fp::FpVar, FieldVar},
+    uint8::UInt8,
+    ToBitsGadget,
+    ToBytesGadget,
+    ToConstraintFieldGadget,
+};
+use ark_relations::r1cs::{ConstraintSystemRef, SynthesisError};
 
 /// Generate default parameters (bls381-fr-only) for alpha = 17, state-size = 8
 pub fn poseidon_parameters_for_test<F: PrimeField>() -> PoseidonConfig<F> {

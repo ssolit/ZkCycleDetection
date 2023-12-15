@@ -1,18 +1,13 @@
 use ark_bls12_381::fr::Fr;
-use ark_crypto_primitives::sponge::poseidon::{PoseidonSponge};
-// use ark_crypto_primitives::sponge::poseidon::constraints::{PoseidonSpongeVar};
 use ark_crypto_primitives::sponge::{
-    CryptographicSponge, FieldBasedCryptographicSponge,
+    CryptographicSponge, 
+    FieldBasedCryptographicSponge,
+    poseidon::{PoseidonSponge},
 };
 
 use ark_ff::{PrimeField};
-use ark_r1cs_std::boolean::Boolean;
-use ark_r1cs_std::R1CSVar;
-// use ark_relations::r1cs::{ConstraintSystem};
-use ark_relations::r1cs::SynthesisError;
-use ark_relations::r1cs::ConstraintSystemRef;
-
-use ark_r1cs_std::fields::fp::FpVar;
+use ark_r1cs_std::{boolean::Boolean, R1CSVar, fields::fp::FpVar};
+use ark_relations::r1cs::{SynthesisError, ConstraintSystemRef};
 
 mod hashing_utils;
 use crate::utils::{

@@ -1,11 +1,6 @@
 use crate::utils::CmpGadget;
 use ark_ff::PrimeField;
-use ark_r1cs_std::{
-    prelude::{
-        // AllocVar, 
-        Boolean, EqGadget},
-    // uint8::UInt8,
-};
+use ark_r1cs_std::prelude::{Boolean, EqGadget};
 use ark_relations::r1cs::SynthesisError;
 use crate::utils::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
 

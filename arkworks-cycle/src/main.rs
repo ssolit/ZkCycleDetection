@@ -3,24 +3,38 @@
 // #![allow(dead_code)]
 
 use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
-use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
-
 use ark_groth16::{prepare_verifying_key, Groth16, Proof};
 use ark_relations::{
-    r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
+    r1cs::{ConstraintSystem, ConstraintSystemRef, ConstraintSynthesizer, SynthesisError},
 };
 use ark_std::{
     rand::{RngCore, SeedableRng},
     test_rng,
 };
+use ark_bls12_381::{
+    Bls12_381,
+    fr::Fr,
+    Config,
+};
+use ark_ec::bls12::Bls12;
+use ark_ec::pairing::Pairing;
 
-use ark_bls12_381::Bls12_381;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, Write};
-use ark_std::error::Error;
-use ark_std::fs::File;
-use ark_std::io;
+use ark_std::{
+    error::Error,
+    fs::File,
+    io,
+    Zero
+};
 
+// use crate::hashing::poseidon_parameters_for_test;
+use crate::hashing::{hasher_var, hasher};
+use ark_r1cs_std::{
+    fields::fp::FpVar,
+    eq::EqGadget,
+    alloc::AllocVar,
+};
 
 mod utils;
 mod graph_checks;
@@ -37,23 +51,8 @@ use crate::utils::{
     // Boolean3DArray, 
     // BooleanArray, 
 };
-// use crate::graph_checks::alloc;
-use ark_r1cs_std::alloc::AllocVar;
-use ark_relations::r1cs::{ConstraintSystem};
 
 
-
-
-
-
-use ark_bls12_381::fr::Fr;
-// use crate::hashing::poseidon_parameters_for_test;
-use crate::hashing::{hasher_var, hasher};
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::eq::EqGadget;
-use ark_std::Zero;
-use ark_bls12_381::Config;
-use ark_ec::bls12::Bls12;
 
 
 
