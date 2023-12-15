@@ -44,6 +44,7 @@ use crate::graph_checks::hashing::matrix_flattener;
 use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::ns;
+use ark_r1cs_std::prelude::AllocationMode;
 
 
 
@@ -111,7 +112,13 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
         // )?;
         let zero : ConstraintF = ConstraintF::zero();
         let adj_hash_var = zero + self.adj_hash;
-        
+        // let input_var = ConstraintF::new_variable(
+        //     ns!(cs, "input_commitment"),
+        //     || Ok(self.adj_hash),
+        //     AllocationMode::Input,
+        // )?;
+
+        let adj_hash_var: FpVar<ConstraintF> = FpVar::new_input(cs.clone(), || Ok(self.adj_hash))?;
 
 
 

@@ -18,11 +18,14 @@ pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeFiel
     [[[Boolean<ConstraintF>; N]; N]; M],
 );
 
+
+use ark_r1cs_std::fields::fp::FpVar;
+
 // special case where every node should be considered
 pub fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
-    input_hash: &ConstraintF,
+    input_hash: &FpVar<ConstraintF>,
 ) -> Result<(), SynthesisError> {
     let subgraph_nodes = &BooleanArray([(); N].map(|_| Boolean::constant(true)));
     check_subgraph_topo_sort(adj_matrix, subgraph_nodes, topo, input_hash)
@@ -35,7 +38,7 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     subgraph_nodes: &BooleanArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
-    input_hash: &ConstraintF,
+    input_hash: &FpVar<ConstraintF>,
 ) -> Result<(), SynthesisError> {
     // check that there are no duplicate numbers in the toposort
     for i in 0..N {
@@ -71,6 +74,8 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     }
     //check the public inputted hash against adj_matrix
     let real_hash = hashing::hasher(&adj_matrix).unwrap();
+    // real_hash.enforce_equal(input_hash);
+    input_hash.enforce_equal(real_hash);
     // assert_eq!(real_hash, *input_hash);
     Ok(())
 }
