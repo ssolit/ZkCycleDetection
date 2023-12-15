@@ -733,8 +733,8 @@ pub struct PoseidonSpongeVar<F: PrimeField> {
     pub parameters: PoseidonConfig<F>,
 
     // Sponge State
-    /// The sponge's state
     pub state: Vec<FpVar<F>>,
+    
     /// The mode
     pub mode: DuplexSpongeMode,
 }

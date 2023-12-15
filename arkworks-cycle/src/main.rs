@@ -120,8 +120,8 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
 
 
 
-//takes the adj matrix and toposort defined, builds the circuit, gens the proof, & verifies it
-//also will write the proof and read the proof for I/O  demonstration
+// takes the adj matrix and toposort defined, builds the circuit, gens the proof, & verifies it
+// also will write the proof and read the proof for I/O  demonstration
 // hardcoded for bls12_381 because our hash function is as well
 fn test_prove_and_verify<E: Pairing, const N: usize>(
     adj_matrix: [[bool; N]; N], 
@@ -185,8 +185,7 @@ fn write_proof_to_file(
     Ok(())
 }
 
-// // Read proof from file
-
+// Read proof from file
 fn read_proof<E: Pairing>(
     file_path: &str,
 ) -> Result<Proof<E>, Box<dyn Error>> {

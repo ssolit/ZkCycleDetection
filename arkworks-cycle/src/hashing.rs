@@ -17,12 +17,21 @@ use crate::utils::{
     // Uint8Array,
 };
 use crate::hashing::hashing_utils::{PoseidonSpongeVar, CryptographicSpongeVar};
-
-
-
-// pub use poseidon_parameters_for_test;
 pub use hashing_utils::poseidon_parameters_for_test;
 
+// calculates the hash
+pub fn hasher<const N: usize, ConstraintF: PrimeField>(
+    adj_matrix: &Boolean2DArray<N, ConstraintF>,
+) -> Result<Vec<Fr>, SynthesisError> {
+    let sponge_param = poseidon_parameters_for_test();
+    let mut sponge = PoseidonSponge::<Fr>::new(&sponge_param);
+    let flattened_matrix = matrix_flattener(&adj_matrix).unwrap();
+    sponge.absorb(&flattened_matrix);
+    let hash = sponge.squeeze_native_field_elements(1).to_vec();
+    Ok(hash)
+}
+
+// calculates the hash and checks correctness as a circuit
 pub fn hasher_var<const N: usize, ConstraintF: PrimeField>(
     cs: ConstraintSystemRef<ConstraintF>,
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
@@ -35,19 +44,7 @@ pub fn hasher_var<const N: usize, ConstraintF: PrimeField>(
     Ok(hash)
 }
 
-pub fn hasher<const N: usize, ConstraintF: PrimeField>(
-    adj_matrix: &Boolean2DArray<N, ConstraintF>,
-) -> Result<Vec<Fr>, SynthesisError> {
-    let sponge_param = poseidon_parameters_for_test();
-    let mut sponge = PoseidonSponge::<Fr>::new(&sponge_param);
-    let flattened_matrix = matrix_flattener(&adj_matrix).unwrap();
-    sponge.absorb(&flattened_matrix);
-    let hash = sponge.squeeze_native_field_elements(1).to_vec();
-    Ok(hash)
-}
-
 // Takes in a 2D Boolean array (representing an adjacency matrix) and flattens it into a boolean vector
-//TODO: Implement bit-packing
 pub fn matrix_flattener<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
 ) -> Result<Vec<bool>, SynthesisError> {
@@ -65,7 +62,8 @@ pub fn matrix_flattener<const N: usize, ConstraintF: PrimeField>(
     Ok(flattened_matrix)
 }
 
-
+// Takes in a 2D Boolean array (representing an adjacency matrix) and flattens it into a boolean vector
+// Checks correctness as a circuit
 pub fn matrix_flattener_var<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
 ) -> Result<Vec<&Boolean<ConstraintF>>, SynthesisError> {

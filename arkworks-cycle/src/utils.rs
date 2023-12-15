@@ -15,7 +15,7 @@ pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeFiel
     pub [[[Boolean<ConstraintF>; N]; N]; M],
 );
 
-    // Allocates memory for Uint8Array in our constrains sytem
+// Allocates memory for Uint8Array in our constrains system
 impl<const N: usize, F: PrimeField> AllocVar<[u8; N], F> for Uint8Array<N, F> {
     fn new_variable<T: Borrow<[u8; N]>>(
         cs: impl Into<Namespace<F>>,

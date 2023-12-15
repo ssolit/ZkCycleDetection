@@ -14,8 +14,6 @@ pub fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
 }
 
 // Challenge: can't leak the size of the subgraph
-// NOTE: probably need to do more to check a toposort is valid
-// ex no duplictes nodes listed, rn can list same node N times.
 pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     subgraph_nodes: &BooleanArray<N, ConstraintF>,
