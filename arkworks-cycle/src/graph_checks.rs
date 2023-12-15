@@ -72,11 +72,11 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
             let _ = backwards_edge.enforce_equal(&Boolean::FALSE);
         }
     }
-    //check the public inputted hash against adj_matrix
-    let real_hash = hashing::hasher(&adj_matrix).unwrap();
-    // let real_hash_var = FpVar::new_witness_var() // Todo
-    input_hash.enforce_equal(&real_hash[0]);
-    // assert_eq!(real_hash, *input_hash);
+    // //check the public inputted hash against adj_matrix
+    // let real_hash: FpVar<ConstraintF> = hashing::hasherVar::<N, ConstraintF>(&adj_matrix).unwrap()[0];
+    // // let real_hash_var = FpVar::new_witness_var() // Todo
+    // input_hash.enforce_equal(&real_hash);
+    // // assert_eq!(real_hash, *input_hash);
     Ok(())
 }
 

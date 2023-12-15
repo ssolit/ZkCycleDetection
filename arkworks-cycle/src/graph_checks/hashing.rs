@@ -20,14 +20,14 @@ use ark_r1cs_std::fields::fp::FpVar;
 use std::str::FromStr;
 
 
-pub fn hasherVar<const N: usize, ConstraintF: PrimeField>(
-    adj_matrix: &Boolean2DArray<N, ConstraintF>,
+pub fn hasher_var<const N: usize, ConstraintF: PrimeField>(
     cs: ConstraintSystemRef<ConstraintF>,
+    adj_matrix: &Boolean2DArray<N, ConstraintF>,
 ) -> Result<Vec<FpVar<ConstraintF>>, SynthesisError> {
     let sponge_param = poseidon_parameters_for_test();
     let mut sponge = PoseidonSpongeVar::<ConstraintF>::new(cs, &sponge_param);
-    let flattened_matrix = matrix_flattener(&adj_matrix).unwrap();
-    sponge.absorb(&flattened_matrix);
+    let flattened_matrix = matrix_flattener_var(&adj_matrix).unwrap();
+    sponge.absorb(&flattened_matrix)?;
 
     // use ark_std::test_rng;
     // let mut rng = test_rng();
@@ -38,49 +38,64 @@ pub fn hasherVar<const N: usize, ConstraintF: PrimeField>(
     //         .collect();
     // sponge.absorb(&absorb1_var);
 
-    let hash = sponge.squeeze_bits(1)?;
+    let hash = sponge.squeeze_field_elements(1)?;
     Ok(hash)
 }
 
-//construct the hash of a boolean vector
-// 1. Generate Params 2. Preprocess matrix 3. create sponge
 pub fn hasher<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
-) -> Result<Vec<FpVar<ConstraintF>>, SynthesisError> {
+) -> Result<Vec<Fr>, SynthesisError> {
     let preprocess = matrix_flattener(&adj_matrix).unwrap();
-    let mut sponge = sponge_create::<ConstraintF>(&preprocess).unwrap();
+    let mut sponge = sponge_create::<Fr>(&preprocess).unwrap();
     let hash = squeeze_sponge(&mut sponge).unwrap();
-    
 
     Ok(hash)
 }
 
 // getting the params and creating a new sponge object, absorbing a single boolean vector
 pub fn sponge_create<ConstraintF: PrimeField>(
-    input: &Vec<Boolean<ConstraintF>>,
-) -> Result<PoseidonSponge<ConstraintF>, SynthesisError> {
+    input: &Vec<bool>,
+) -> Result<PoseidonSponge<Fr>, SynthesisError> {
     let sponge_param = poseidon_parameters_for_test();
     // let elem = Fr::rand(&mut rng);
-    let mut sponge1 = PoseidonSponge::<ConstraintF>::new(&sponge_param);
+    let mut sponge1 = PoseidonSponge::<Fr>::new(&sponge_param);
     sponge1.absorb(input);
 
     Ok(sponge1)
 }
 
 //squeezes a single field element (hash) from an existing sponge with data
-pub fn squeeze_sponge<ConstraintF: PrimeField>(sponge: &mut PoseidonSponge<ConstraintF>) -> Result<Vec<FpVar<ConstraintF>>, SynthesisError> {
-    let squeeze = sponge.squeeze_bits(1);
+pub fn squeeze_sponge(sponge: &mut PoseidonSponge<Fr>) -> Result<Vec<Fr>, SynthesisError> {
+    let squeeze = sponge.squeeze_native_field_elements(1);
     Ok(squeeze.to_vec())
 }
 // Takes in a 2D Boolean array (representing an adjacency matrix) and flattens it into a boolean vector
 //TODO: Implement bit-packing
 pub fn matrix_flattener<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
-) -> Result<Vec<Boolean<ConstraintF>>, SynthesisError> {
+) -> Result<Vec<bool>, SynthesisError> {
     let mut flattened_matrix = Vec::new();
     for i in 0..N {
         for j in 0..N {
-            flattened_matrix.push(adj_matrix.0[i][j]);
+            let transacted = &adj_matrix.0[i][j]; // true if person i sent to person j
+            if transacted.value()? == true {
+                flattened_matrix.push(true);
+            } else {
+                flattened_matrix.push(false);
+            }
+        }
+    }
+    Ok(flattened_matrix)
+}
+
+
+pub fn matrix_flattener_var<const N: usize, ConstraintF: PrimeField>(
+    adj_matrix: &Boolean2DArray<N, ConstraintF>,
+) -> Result<Vec<&Boolean<ConstraintF>>, SynthesisError> {
+    let mut flattened_matrix = Vec::new();
+    for i in 0..N {
+        for j in 0..N {
+            flattened_matrix.push(&adj_matrix.0[i][j]);
         }
     }
     Ok(flattened_matrix)

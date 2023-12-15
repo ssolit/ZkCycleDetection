@@ -46,6 +46,8 @@ use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::ns;
 use ark_r1cs_std::prelude::AllocationMode;
 use ark_r1cs_std::R1CSVar;
+use crate::graph_checks::hashing::hasher_var;
+use ark_r1cs_std::eq::EqGadget;
 
 
 
@@ -84,48 +86,21 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
         self,
         cs: ConstraintSystemRef<ConstraintF>,
     ) -> Result<(), SynthesisError> {
+        // create input vars
         let adj_matrix_var =
             Boolean2DArray::new_witness(cs.clone(), || Ok(self.adj_matrix)).unwrap();
         let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(self.toposort)).unwrap();
+        let hash_claim_var: FpVar<ConstraintF> = FpVar::new_input(cs.clone(), || Ok(self.adj_hash))?;
 
+        // check the claimed hash is correct
+        let hash_real: &FpVar<ConstraintF> = &hasher_var::<N, ConstraintF>(cs.clone(), &adj_matrix_var).unwrap()[0];
+        hash_real.enforce_equal(&hash_claim_var)?;
 
+        // check the graph properties
+        check_topo_sort(&adj_matrix_var, &topo_var, &hash_claim_var).unwrap();
 
-        // TODO: Get the public input hash;
-        // let mut constraint_sponge = PoseidonSpongeVar::<Fr>::new(cs.clone(), &p_config);
-        // let flattened_matrix = matrix_flattener::<N, ConstraintF>(&adj_matrix_var);
-        
-        // let cs = ConstraintSystem::<Fr>::new_ref();
-        // let mut rng = test_rng();
-        // let absorb1: Vec<_> = (0..256).map(|_| ConstraintF::rand(&mut rng)).collect();
-        // let hash_vec = vec![self.adj_hash];
-        // let absorb1_var: Vec<_> = hash_vec
-        //     .iter()
-        //     .map(|v| FpVar::new_input(ns!(cs, "absorb1"), || Ok(*v)).unwrap())
-        //     .collect();
-
-        // let my_var = FpVar::new_input(ns!(cs, "my_var"), || Ok(*self.adj_hash[0])).unwrap();
-
-        // let adj_hash_var = cs.new_input_variable(|| Ok(self.adj_hash))?;
-        // let input_var = ConstraintF::new_variable(
-        //     ns!(cs, "input_commitment"),
-        //     || Ok(self.adj_hash),
-        //     AllocationMode::Input,
-        // )?;
-        let zero : ConstraintF = ConstraintF::zero();
-        let adj_hash_var = zero + self.adj_hash;
-        // let input_var = ConstraintF::new_variable(
-        //     ns!(cs, "input_commitment"),
-        //     || Ok(self.adj_hash),
-        //     AllocationMode::Input,
-        // )?;
-
-        let adj_hash_var: FpVar<ConstraintF> = FpVar::new_input(cs.clone(), || Ok(self.adj_hash))?;
-
-
-
-        check_topo_sort(&adj_matrix_var, &topo_var, &adj_hash_var).unwrap();
+        // finish
         println!("Number of constraints: {}", cs.num_constraints());
-
         Ok(())
     }
 }
@@ -160,7 +135,7 @@ where
     let circuit_inputs: MyGraphCircuitStruct<4, Fr> = MyGraphCircuitStruct {
         adj_matrix: adj_matrix,
         toposort: topological_sort,
-        adj_hash: adj_hash.value()?,
+        adj_hash: adj_hash,
     };
     //TODO: Unwrap circuit_inputs to just grab the adj_matrix
     // Create a constraint system
@@ -176,7 +151,7 @@ where
     let proof = Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
 
     // assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &adj_hash[..], &proof).unwrap());
-    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash.value()?], &proof).unwrap());
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
 
     //TODO: Make failing test case with wrong hash
     let false_adj_matrix = [
