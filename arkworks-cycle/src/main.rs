@@ -48,6 +48,7 @@ use ark_r1cs_std::prelude::AllocationMode;
 use ark_r1cs_std::R1CSVar;
 use crate::graph_checks::hashing::hasher_var;
 use ark_r1cs_std::eq::EqGadget;
+use ark_std::Zero;
 
 
 
@@ -105,13 +106,18 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
     }
 }
 
+
+
 //takes the adj matrix and toposort defined, builds the circuit, gens the proof, & verifies it
 //also will write the proof and read the proof for I/O  demonstration
 fn test_prove_and_verify<E>() -> Result<(), Box<dyn Error>>
 where
     E: Pairing,
 {
-    use ark_bls12_381::Fr;
+    use ark_bls12_381::Fr as PrimeField;
+    use ark_bls12_381::Config;
+    use ark_ec::bls12::Bls12;
+
     let cs = ConstraintSystem::<Fr>::new_ref();
     //defining the inputs
     let adj_matrix = [
@@ -137,118 +143,60 @@ where
         toposort: topological_sort,
         adj_hash: adj_hash,
     };
-    //TODO: Unwrap circuit_inputs to just grab the adj_matrix
-    // Create a constraint system
-  
     
-
-    
-
     // generate the proof
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
     let (pk, vk) = Groth16::<Bls12_381>::setup(circuit_inputs.clone(), &mut rng).unwrap();
     let pvk = prepare_verifying_key::<Bls12_381>(&vk);
-    let proof = Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
+    let proof: Proof<Bls12<Config>> = Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
 
     // assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &adj_hash[..], &proof).unwrap());
     assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
+    println!("working case passed");
 
-    //TODO: Make failing test case with wrong hash
-    let false_adj_matrix = [
-        [false, true, true, false],  //               [0]
-        [false, false, true, false], //               / \
-        [false, false, false, true], //             [1]->[2] -> 3
-        [false, false, true, false], //
-    ];
-
-    // let false_hash = hasher(&false_adj_matrix);
-    // assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &false_hash, &proof).unwrap());
-
-    //TODO: Make read and write functions with this code (I/O functions)
-    // let mut compressed_bytes = Vec::new();
-    // proof.serialize_compressed(&mut compressed_bytes).unwrap();
-    // let file_path = "./proof.bin";
-    // let mut file: File = std::fs::OpenOptions::new()
-    //     .create(true)
-    //     .write(true)
-    //     .read(true)
-    //     .open(file_path)
-    //     .unwrap();
-    // file.write_all(&compressed_bytes)?;
-    // file.flush()?;
-
-    // let mut file2 = File::open(file_path)?;
-    // let mut buffer = Vec::new();
-    // file2.read_to_end(&mut buffer)?;
-    // let read_proof = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())?;
-
-    // //checking I/O  was done correctly
-    // assert!(Groth16::<E>::verify_with_processed_vk(&pvk, &[], &read_proof).unwrap());
-    // // assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &[a], &read_proof).unwrap());
-    // Generate and write proof
-    // Example usage with specified types and size N
-    // let start = Instant::now();
-    // write_proof_to_file::<Bls12_381, 4>(&adj_matrix, &topological_sort, "./proof.bin", &adj_hash)?;
-    // let duration = start.elapsed();
-    // println!("Execution time: {:?}", duration);
-
-    // Read and verify proof
-    // let is_valid = read_and_verify_proof::<Bls12_381>("./proof.bin", &pvk, &[])?;
-    // assert!(Groth16::<E>::verify_with_processed_vk(&pvk, &[], &read_proof).unwrap());
+    let false_hash = Fr::zero();
+    assert!(!Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[false_hash], &proof).unwrap());
 
     Ok(())
 }
 
-// // Generate proof and write to file
-// fn write_proof_to_file<E: Pairing, const N: usize>(
-//     adj_matrix: &[[bool; N]; N],
-//     toposort: &[u8; N],
-//     file_path: &str,
-//     adj_hash: &Fr,
-// ) -> Result<(), io::Error> {
-//     //create circuit inputs struct:
-//     let circuit_inputs: MyGraphCircuitStruct<N, ConstraintF> = MyGraphCircuitStruct {
-//         adj_matrix: *adj_matrix,
-//         toposort: *toposort,
-//         adj_hash: *adj_hash,
-//     };
+use ark_bls12_381::Config;
+use ark_ec::bls12::Bls12;
+// Generate proof and write to file
+fn write_proof_to_file<E: Pairing, const N: usize, ConstraintF: PrimeField>(
+    proof: &Proof<Bls12<Config>>,
+    file_path: &str,
+) -> Result<(), io::Error> {
 
-//     // Generate the proof using the circuit and inputs
-//     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
-//     let (pk, vk) = Groth16::<E>::setup(circuit_inputs.clone(), &mut rng).unwrap();
-//     let pvk = prepare_verifying_key::<E>(&vk);
-//     let proof = Groth16::<E>::prove(&pk, circuit_inputs, &mut rng).unwrap();
-
-//     // Serialize the proof to a byte vector
-
-//     let mut compressed_bytes = Vec::new();
-//     proof.serialize_compressed(&mut compressed_bytes).unwrap();
-
-//     // Create and write the proof to the file
-
-//     let mut file = File::create(file_path)?;
-//     file.write_all(&compressed_bytes)?;
-//     file.flush()?;
-
-//     Ok(())
-// }
+    let mut compressed_bytes = Vec::new();
+    proof.serialize_compressed(&mut compressed_bytes).unwrap();
+    let file_path = "./proof.bin";
+    let mut file: File = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .read(true)
+        .open(file_path)
+        .unwrap();
+    file.write_all(&compressed_bytes)?;
+    file.flush()?;
+    Ok(())
+}
 
 // // Read proof from file
 
-// fn read_and_verify_proof<E: Pairing>(
-//     file_path: &str,
-//     pvk: &VerifyingKey<E>,
-//     public_input: &[E::ScalarField],
-// ) -> Result<bool, Box<dyn Error>> {
-//     // Open and read the file
-//     let mut file = File::open(file_path)?;
-//     let mut buffer = Vec::new();
-//     file.read_to_end(&mut buffer)?;
+fn read_proof_and_verify<E: Pairing>(
+    file_path: &str,
+    pvk: &VerifyingKey<E>,
+    public_input: &[E::ScalarField],
+) -> Result<bool, Box<dyn Error>> {
+    // Open and read the file
+    let mut file = File::open(file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
 
-//     // Deserialize the proof from the buffer
-//     let proof = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())
-//         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    // Deserialize the proof from the buffer
+    let proof: Proof<E> = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-//     // Verify the proof
-//     Groth16::<E>::verify(pvk, public_input, &proof).map_err(|e| Box::new(e) as Box<dyn Error>)
-// }
+    return Ok(true);
+}
