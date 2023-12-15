@@ -1,26 +1,26 @@
 use ark_bls12_381::fr::Fr;
-use ark_bls12_381::Fq as F;
-use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig, PoseidonSponge};
+use ark_crypto_primitives::sponge::poseidon::{PoseidonSponge};
 // use ark_crypto_primitives::sponge::poseidon::constraints::{PoseidonSpongeVar};
 use ark_crypto_primitives::sponge::{
-    Absorb, AbsorbWithLength, CryptographicSponge, FieldBasedCryptographicSponge,
+    CryptographicSponge, FieldBasedCryptographicSponge,
 };
 
-use ark_crypto_primitives::{absorb, collect_sponge_bytes, collect_sponge_field_elements};
-use ark_ff::{One, PrimeField, UniformRand};
+use ark_ff::{PrimeField};
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::R1CSVar;
-use ark_relations::r1cs::{ConstraintSystem, SynthesisError};
-use ark_std::test_rng;
+// use ark_relations::r1cs::{ConstraintSystem};
+use ark_relations::r1cs::SynthesisError;
 use ark_relations::r1cs::ConstraintSystemRef;
 
-use crate::utils::*;
-use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
-use std::str::FromStr;
 
 mod hashing_utils;
-use crate::utils::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
+use crate::utils::{
+    Boolean2DArray, 
+    // Boolean3DArray, 
+    // BooleanArray, 
+    // Uint8Array,
+};
 use crate::hashing::hashing_utils::{PoseidonSpongeVar, CryptographicSpongeVar};
 
 
@@ -87,8 +87,8 @@ pub fn matrix_flattener_var<const N: usize, ConstraintF: PrimeField>(
 #[test]
 fn mod_gen_hash_test() {
     use ark_bls12_381::Fq as F;
-    use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
-    use tracing_subscriber::layer::SubscriberExt;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
 
     let adj_matrix = [
         [false, true, true, false],   //               [0]
@@ -124,6 +124,9 @@ fn mod_gen_hash_test() {
 #[test]
 fn test_hashing_empty_matrix() {
     use ark_bls12_381::Fq as F;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
+
     let adj_matrix = [[false; 4]; 4];
 
     let cs = ConstraintSystem::<F>::new_ref();
@@ -137,6 +140,9 @@ fn test_hashing_empty_matrix() {
 #[test]
 fn test_hashing_full_matrix() {
     use ark_bls12_381::Fq as F;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
+
     let adj_matrix = [[true; 4]; 4];
 
     let cs = ConstraintSystem::<F>::new_ref();
@@ -150,6 +156,9 @@ fn test_hashing_full_matrix() {
 #[test]
 fn test_hashing_different_matrices() {
     use ark_bls12_381::Fq as F;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
+
     let adj_matrix_1 = [[false, true], [true, false]];
     let adj_matrix_2 = [[true, false], [false, true]];
 
@@ -166,6 +175,9 @@ fn test_hashing_different_matrices() {
 #[test]
 fn test_hashing_one_changed_element() {
     use ark_bls12_381::Fq as F;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
+
     let adj_matrix_1 = [[false; 3]; 3];
     let mut adj_matrix_2 = adj_matrix_1.clone();
     adj_matrix_2[1][1] = true; // Change one element
@@ -183,6 +195,9 @@ fn test_hashing_one_changed_element() {
 #[test]
 fn test_hashing_inverted_matrices() {
     use ark_bls12_381::Fq as F;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
+
     let adj_matrix = [[true, false], [false, true]];
     let inverted_matrix = adj_matrix.map(|row| row.map(|elem| !elem));
 
@@ -200,6 +215,9 @@ fn test_hashing_inverted_matrices() {
 #[test]
 fn test_hashing_large_identical_matrices() {
     use ark_bls12_381::Fq as F;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
+
     const N: usize = 100; // Large size
     let mut adj_matrix_1 = [[false; N]; N];
     let mut adj_matrix_2 = [[false; N]; N];
@@ -227,6 +245,9 @@ fn test_hashing_large_identical_matrices() {
 #[test]
 fn test_hashing_large_diagonal_matrices() {
     use ark_bls12_381::Fq as F;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
+
     const N: usize = 50; // Large size
     let mut adj_matrix = [[false; N]; N];
 
@@ -250,6 +271,9 @@ fn test_hashing_large_diagonal_matrices() {
 #[test]
 fn test_hashing_large_sparse_matrices() {
     use ark_bls12_381::Fq as F;
+    use ark_relations::r1cs::ConstraintSystem;
+    use ark_r1cs_std::alloc::AllocVar;
+    
     const N: usize = 60; // Large size
     let mut adj_matrix = [[false; N]; N];
 

@@ -1,37 +1,21 @@
-use ark_bls12_381::fr::Fr;
-use ark_bls12_381::Fq as F;
 use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig, PoseidonSponge};
 // use ark_crypto_primitives::sponge::poseidon::constraints::{PoseidonSpongeVar};
 use ark_crypto_primitives::sponge::{
-    Absorb, AbsorbWithLength, CryptographicSponge, FieldBasedCryptographicSponge,
+    CryptographicSponge
 };
 
-use ark_crypto_primitives::{absorb, collect_sponge_bytes, collect_sponge_field_elements};
-use ark_ff::{One, PrimeField, UniformRand};
+use ark_ff::{PrimeField};
 use ark_r1cs_std::boolean::Boolean;
-use ark_r1cs_std::R1CSVar;
-use ark_relations::r1cs::{ConstraintSystem, SynthesisError};
-use ark_std::test_rng;
+use ark_relations::r1cs::{SynthesisError};
 
-use crate::utils::*;
-use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
-use std::str::FromStr;
 
 use ark_crypto_primitives::sponge::DuplexSpongeMode;
 use ark_r1cs_std::uint8::UInt8;
 use ark_relations::r1cs::ConstraintSystemRef;
-use ark_crypto_primitives::sponge::FieldElementSize;
-use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::fields::FieldVar;
 use ark_r1cs_std::ToBitsGadget;
 use ark_r1cs_std::ToBytesGadget;
-use ark_r1cs_std::fields::nonnative::AllocatedNonNativeFieldVar;
-use ark_r1cs_std::fields::fp::AllocatedFp;
-use ark_relations::r1cs::LinearCombination;
-use ark_r1cs_std::fields::nonnative::params::OptimizationType;
-use ark_r1cs_std::fields::nonnative::params::get_params;
-use ark_relations::lc;
 use ark_r1cs_std::ToConstraintFieldGadget;
 
 
@@ -1165,77 +1149,77 @@ pub trait SpongeWithGadget<CF: PrimeField>: CryptographicSponge {
     type Var: CryptographicSpongeVar<CF, Self>;
 }
 
-pub fn bits_le_to_nonnative<'a, F: PrimeField, CF: PrimeField>(
-    cs: ConstraintSystemRef<CF>,
-    all_nonnative_bits_le: impl IntoIterator<Item = &'a Vec<Boolean<CF>>>,
-) -> Result<Vec<NonNativeFieldVar<F, CF>>, SynthesisError> {
-    let all_nonnative_bits_le = all_nonnative_bits_le.into_iter().collect::<Vec<_>>();
-    if all_nonnative_bits_le.is_empty() {
-        return Ok(Vec::new());
-    }
+// pub fn bits_le_to_nonnative<'a, F: PrimeField, CF: PrimeField>(
+//     cs: ConstraintSystemRef<CF>,
+//     all_nonnative_bits_le: impl IntoIterator<Item = &'a Vec<Boolean<CF>>>,
+// ) -> Result<Vec<NonNativeFieldVar<F, CF>>, SynthesisError> {
+//     let all_nonnative_bits_le = all_nonnative_bits_le.into_iter().collect::<Vec<_>>();
+//     if all_nonnative_bits_le.is_empty() {
+//         return Ok(Vec::new());
+//     }
 
-    let mut max_nonnative_bits = 0usize;
-    for bits in &all_nonnative_bits_le {
-        max_nonnative_bits = max_nonnative_bits.max(bits.len());
-    }
+//     let mut max_nonnative_bits = 0usize;
+//     for bits in &all_nonnative_bits_le {
+//         max_nonnative_bits = max_nonnative_bits.max(bits.len());
+//     }
 
-    let mut lookup_table = Vec::<Vec<CF>>::new();
-    let mut cur = F::one();
-    for _ in 0..max_nonnative_bits {
-        let repr = AllocatedNonNativeFieldVar::<F, CF>::get_limbs_representations(
-            &cur,
-            OptimizationType::Constraints,
-        )?;
-        lookup_table.push(repr);
-        cur.double_in_place();
-    }
+//     let mut lookup_table = Vec::<Vec<CF>>::new();
+//     let mut cur = F::one();
+//     for _ in 0..max_nonnative_bits {
+//         let repr = AllocatedNonNativeFieldVar::<F, CF>::get_limbs_representations(
+//             &cur,
+//             OptimizationType::Constraints,
+//         )?;
+//         lookup_table.push(repr);
+//         cur.double_in_place();
+//     }
 
-    let params = get_params(
-        F::MODULUS_BIT_SIZE as usize,
-        CF::MODULUS_BIT_SIZE as usize,
-        OptimizationType::Constraints,
-    );
+//     let params = get_params(
+//         F::MODULUS_BIT_SIZE as usize,
+//         CF::MODULUS_BIT_SIZE as usize,
+//         OptimizationType::Constraints,
+//     );
 
-    let mut output = Vec::with_capacity(all_nonnative_bits_le.len());
-    for nonnative_bits_le in all_nonnative_bits_le {
-        let mut val = vec![CF::zero(); params.num_limbs];
-        let mut lc = vec![LinearCombination::<CF>::zero(); params.num_limbs];
+//     let mut output = Vec::with_capacity(all_nonnative_bits_le.len());
+//     for nonnative_bits_le in all_nonnative_bits_le {
+//         let mut val = vec![CF::zero(); params.num_limbs];
+//         let mut lc = vec![LinearCombination::<CF>::zero(); params.num_limbs];
 
-        for (j, bit) in nonnative_bits_le.iter().enumerate() {
-            if bit.value().unwrap_or_default() {
-                for (k, val) in val.iter_mut().enumerate().take(params.num_limbs) {
-                    *val += &lookup_table[j][k];
-                }
-            }
+//         for (j, bit) in nonnative_bits_le.iter().enumerate() {
+//             if bit.value().unwrap_or_default() {
+//                 for (k, val) in val.iter_mut().enumerate().take(params.num_limbs) {
+//                     *val += &lookup_table[j][k];
+//                 }
+//             }
 
-            #[allow(clippy::needless_range_loop)]
-            for k in 0..params.num_limbs {
-                lc[k] = &lc[k] + bit.lc() * lookup_table[j][k];
-            }
-        }
+//             #[allow(clippy::needless_range_loop)]
+//             for k in 0..params.num_limbs {
+//                 lc[k] = &lc[k] + bit.lc() * lookup_table[j][k];
+//             }
+//         }
 
-        let mut limbs = Vec::new();
-        for k in 0..params.num_limbs {
-            let gadget =
-                AllocatedFp::new_witness(ark_relations::ns!(cs, "alloc"), || Ok(val[k])).unwrap();
-            lc[k] = lc[k].clone() - (CF::one(), gadget.variable);
-            cs.enforce_constraint(lc!(), lc!(), lc[k].clone()).unwrap();
-            limbs.push(FpVar::<CF>::from(gadget));
-        }
+//         let mut limbs = Vec::new();
+//         for k in 0..params.num_limbs {
+//             let gadget =
+//                 AllocatedFp::new_witness(ark_relations::ns!(cs, "alloc"), || Ok(val[k])).unwrap();
+//             lc[k] = lc[k].clone() - (CF::one(), gadget.variable);
+//             cs.enforce_constraint(lc!(), lc!(), lc[k].clone()).unwrap();
+//             limbs.push(FpVar::<CF>::from(gadget));
+//         }
 
-        output.push(NonNativeFieldVar::<F, CF>::Var(
-            AllocatedNonNativeFieldVar::<F, CF> {
-                cs: cs.clone(),
-                limbs,
-                num_of_additions_over_normal_form: CF::zero(),
-                is_in_the_normal_form: true,
-                target_phantom: Default::default(),
-            },
-        ));
-    }
+//         output.push(NonNativeFieldVar::<F, CF>::Var(
+//             AllocatedNonNativeFieldVar::<F, CF> {
+//                 cs: cs.clone(),
+//                 limbs,
+//                 num_of_additions_over_normal_form: CF::zero(),
+//                 is_in_the_normal_form: true,
+//                 target_phantom: Default::default(),
+//             },
+//         ));
+//     }
 
-    Ok(output)
-}
+//     Ok(output)
+// }
 
 impl<F: PrimeField> AbsorbGadget<F> for UInt8<F> {
     fn to_sponge_bytes(&self) -> Result<Vec<UInt8<F>>, SynthesisError> {

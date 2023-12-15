@@ -1,21 +1,18 @@
-#![allow(unused_variables)]
-#![allow(unused_imports)]
-#![allow(dead_code)]
+// #![allow(unused_variables)]
+// #![allow(unused_imports)]
+// #![allow(dead_code)]
 
 use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
-use std::time::Instant;
 
-use ark_groth16::VerifyingKey;
 use ark_groth16::{prepare_verifying_key, Groth16, Proof};
 use ark_relations::{
-    lc,
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
 };
 use ark_std::{
     rand::{RngCore, SeedableRng},
-    test_rng, UniformRand,
+    test_rng,
 };
 
 use ark_bls12_381::Bls12_381;
@@ -30,12 +27,19 @@ mod graph_checks;
 mod hashing;
 
 use crate::graph_checks::{
-    check_multi_subgraph_topo_sort, check_subgraph_topo_sort, check_topo_sort,
+    check_topo_sort,
+    // check_subgraph_topo_sort, 
+    // check_multi_subgraph_topo_sort, 
 };
-use crate::utils::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
+use crate::utils::{
+    Boolean2DArray,
+    Uint8Array
+    // Boolean3DArray, 
+    // BooleanArray, 
+};
 // use crate::graph_checks::alloc;
 use ark_r1cs_std::alloc::AllocVar;
-use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
+use ark_relations::r1cs::{ConstraintSystem};
 
 
 
@@ -43,13 +47,9 @@ use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
 
 
 use ark_bls12_381::fr::Fr;
-use crate::hashing::poseidon_parameters_for_test;
-use crate::hashing::{matrix_flattener, hasher_var, hasher};
-use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig};
+// use crate::hashing::poseidon_parameters_for_test;
+use crate::hashing::{hasher_var, hasher};
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_relations::ns;
-use ark_r1cs_std::prelude::AllocationMode;
-use ark_r1cs_std::R1CSVar;
 use ark_r1cs_std::eq::EqGadget;
 use ark_std::Zero;
 use ark_bls12_381::Config;
@@ -123,14 +123,11 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
 
 //takes the adj matrix and toposort defined, builds the circuit, gens the proof, & verifies it
 //also will write the proof and read the proof for I/O  demonstration
+// hardcoded for bls12_381 because our hash function is as well
 fn test_prove_and_verify<E: Pairing, const N: usize>(
     adj_matrix: [[bool; N]; N], 
     topological_sort: [u8; N],
 ) -> Result<(), Box<dyn Error>> {
-    // hardcoded for bls12_381 because our hash function is as well
-    use ark_bls12_381::Fr as PrimeField;
-    use ark_bls12_381::Config;
-    use ark_ec::bls12::Bls12;
 
     let cs = ConstraintSystem::<Fr>::new_ref();
     //defining the inputs
@@ -165,7 +162,7 @@ fn test_prove_and_verify<E: Pairing, const N: usize>(
     let file_path = "./proof.bin";
     write_proof_to_file(&proof, file_path)?;
     let read_proof: Proof<Bls12<Config>> = read_proof::<Bls12_381>(file_path)?;
-    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &read_proof).unwrap());
 
     Ok(())
 }

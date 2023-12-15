@@ -1,15 +1,12 @@
 use crate::utils::CmpGadget;
-use ark_bls12_381::fr::Fr;
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
-    prelude::{AllocVar, Boolean, EqGadget},
-    uint8::UInt8,
+    prelude::{
+        // AllocVar, 
+        Boolean, EqGadget},
+    // uint8::UInt8,
 };
 use ark_relations::r1cs::SynthesisError;
-
-
-
-use ark_r1cs_std::fields::fp::FpVar;
 use crate::utils::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
 
 // special case where every node should be considered
@@ -61,11 +58,6 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
             let _ = backwards_edge.enforce_equal(&Boolean::FALSE);
         }
     }
-    // //check the public inputted hash against adj_matrix
-    // let real_hash: FpVar<ConstraintF> = hashing::hasherVar::<N, ConstraintF>(&adj_matrix).unwrap()[0];
-    // // let real_hash_var = FpVar::new_witness_var() // Todo
-    // input_hash.enforce_equal(&real_hash);
-    // // assert_eq!(real_hash, *input_hash);
     Ok(())
 }
 
@@ -75,22 +67,17 @@ pub fn check_multi_subgraph_topo_sort<const N: usize, const M: usize, Constraint
     subgraph_nodes: &BooleanArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
 ) -> Result<(), SynthesisError> {
-    // let combined_adj_matrix = &mut Boolean2DArray(adj_matrix_array.0[0].clone());
+    let combined_adj_matrix = &mut Boolean2DArray(adj_matrix_array.0[0].clone());
 
-    // for k in 1..M {
-    //     for i in 0..N {
-    //         for j in 0..N {
-    //             combined_adj_matrix.0[i][j] =
-    //                 combined_adj_matrix.0[i][j].or(&adj_matrix_array.0[k][i][j])?;
-    //         }
-    //     }
-    // }
-    // //check the public inputted hash against adj_matrix
-    // let real_hash = hashing::hasher(&combined_adj_matrix).unwrap();
-    // let zero : ConstraintF = ConstraintF::zero();
-    // let adj_hash_var = zero + self.adj_hash;
-    // check_subgraph_topo_sort(combined_adj_matrix, subgraph_nodes, topo, &real_hash)
-    unimplemented!()
+    for k in 1..M {
+        for i in 0..N {
+            for j in 0..N {
+                combined_adj_matrix.0[i][j] =
+                    combined_adj_matrix.0[i][j].or(&adj_matrix_array.0[k][i][j])?;
+            }
+        }
+    }
+    check_subgraph_topo_sort(combined_adj_matrix, subgraph_nodes, topo)
 }
 
 #[test]
@@ -98,6 +85,7 @@ fn valid_topo_sort() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -116,10 +104,8 @@ fn valid_topo_sort() {
 
     let cs = ConstraintSystem::<F>::new_ref();
     let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
-    let hash = hashing::hasher(&adj_matrix_var).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
-    check_topo_sort(&adj_matrix_var, &topo_var, &hash).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
+    check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
@@ -133,6 +119,7 @@ fn invalid_topo_sort() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -153,7 +140,6 @@ fn invalid_topo_sort() {
     let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
@@ -167,6 +153,7 @@ fn invalid_topo_sort_2() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -189,7 +176,6 @@ fn invalid_topo_sort_2() {
     let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
@@ -203,6 +189,7 @@ fn topo_sort_missing_nodes() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -223,7 +210,6 @@ fn topo_sort_missing_nodes() {
     let adj_matrix_var = Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
@@ -237,6 +223,7 @@ fn valid_subgraph_sort() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -259,7 +246,6 @@ fn valid_subgraph_sort() {
     let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_subgraph_topo_sort(&adj_matrix_var, &subgraph_nodes_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
@@ -274,6 +260,7 @@ fn valid_subgraph_sort_ignores_cycle() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -298,7 +285,6 @@ fn valid_subgraph_sort_ignores_cycle() {
     let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_subgraph_topo_sort(&adj_matrix_var, &subgraph_nodes_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
@@ -313,6 +299,7 @@ fn invalid_subgraph_topo() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -334,7 +321,6 @@ fn invalid_subgraph_topo() {
     let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_subgraph_topo_sort(&adj_matrix_var, &subgraph_nodes_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
@@ -349,6 +335,7 @@ fn valid_multi() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -392,7 +379,6 @@ fn valid_multi() {
     let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_multi_subgraph_topo_sort(&adj_matrix_array_var, &subgraph_nodes_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
@@ -407,6 +393,7 @@ fn invalid_multi_bad_topo() {
     use ark_bls12_381::Fq as F;
     use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
     use tracing_subscriber::layer::SubscriberExt;
+    use ark_r1cs_std::alloc::AllocVar;
 
     // supposed to give debug traces, but didn't
     let mut layer = ConstraintLayer::default();
@@ -450,7 +437,6 @@ fn invalid_multi_bad_topo() {
     let subgraph_nodes_var = BooleanArray::new_witness(cs.clone(), || Ok(subgraph_nodes)).unwrap();
     let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(topo)).unwrap();
     check_multi_subgraph_topo_sort(&adj_matrix_array_var, &subgraph_nodes_var, &topo_var).unwrap();
-    // //TODO: check hash of adj_matrix matches some public input
     let is_satisfied = cs.is_satisfied().unwrap();
     if !is_satisfied {
         // If it isn't, find out the offending constraint.
