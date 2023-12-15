@@ -34,26 +34,19 @@ use crate::graph_checks::hashing::hasher;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
 
-
-
-
-
-
-use ark_bls12_381::fr::Fr;
-use crate::graph_checks::hashing::poseidon_parameters_for_test;
+use crate::graph_checks::hashing::hasher_var;
 use crate::graph_checks::hashing::matrix_flattener;
-use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig};
+use crate::graph_checks::hashing::poseidon_parameters_for_test;
+use ark_bls12_381::fr::Fr;
+use ark_bls12_381::Config;
+use ark_crypto_primitives::sponge::poseidon::PoseidonConfig;
+use ark_ec::bls12::Bls12;
+use ark_r1cs_std::eq::EqGadget;
 use ark_r1cs_std::fields::fp::FpVar;
-use ark_relations::ns;
 use ark_r1cs_std::prelude::AllocationMode;
 use ark_r1cs_std::R1CSVar;
-use crate::graph_checks::hashing::hasher_var;
-use ark_r1cs_std::eq::EqGadget;
+use ark_relations::ns;
 use ark_std::Zero;
-use ark_bls12_381::Config;
-use ark_ec::bls12::Bls12;
-
-
 
 fn main() {
     //function called by cargo run
@@ -102,10 +95,12 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
         let adj_matrix_var =
             Boolean2DArray::new_witness(cs.clone(), || Ok(self.adj_matrix)).unwrap();
         let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(self.toposort)).unwrap();
-        let hash_claim_var: FpVar<ConstraintF> = FpVar::new_input(cs.clone(), || Ok(self.adj_hash))?;
+        let hash_claim_var: FpVar<ConstraintF> =
+            FpVar::new_input(cs.clone(), || Ok(self.adj_hash))?;
 
         // check the claimed hash is correct
-        let hash_real: &FpVar<ConstraintF> = &hasher_var::<N, ConstraintF>(cs.clone(), &adj_matrix_var).unwrap()[0];
+        let hash_real: &FpVar<ConstraintF> =
+            &hasher_var::<N, ConstraintF>(cs.clone(), &adj_matrix_var).unwrap()[0];
         hash_real.enforce_equal(&hash_claim_var)?;
 
         // check the graph properties
@@ -117,17 +112,15 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
     }
 }
 
-
-
 //takes the adj matrix and toposort defined, builds the circuit, gens the proof, & verifies it
 //also will write the proof and read the proof for I/O  demonstration
 fn test_prove_and_verify<E: Pairing, const N: usize>(
-    adj_matrix: [[bool; N]; N], 
+    adj_matrix: [[bool; N]; N],
     topological_sort: [u8; N],
 ) -> Result<(), Box<dyn Error>> {
     // hardcoded for bls12_381 because our hash function is as well
-    use ark_bls12_381::Fr as PrimeField;
     use ark_bls12_381::Config;
+    use ark_bls12_381::Fr as PrimeField;
     use ark_ec::bls12::Bls12;
 
     let cs = ConstraintSystem::<Fr>::new_ref();
@@ -148,14 +141,21 @@ fn test_prove_and_verify<E: Pairing, const N: usize>(
         toposort: topological_sort,
         adj_hash: adj_hash,
     };
+
     // generate the proof
+    let start_gen = Instant::now();
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
     let (pk, vk) = Groth16::<Bls12_381>::setup(circuit_inputs.clone(), &mut rng).unwrap();
     let pvk = prepare_verifying_key::<Bls12_381>(&vk);
-    let proof: Proof<Bls12<Config>> = Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
-
+    let proof: Proof<Bls12<Config>> =
+        Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
+    let end_gen = start_gen.elapsed().as_millis();
+    println!("Time taken to generate proof: {} ms", end_gen);
     // test some verification checks
+    let start_verify = Instant::now();
     assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
+    let end_verify = start_verify.elapsed().as_millis();
+    println!("Time take to verify proof: {} ms", end_verify);
     let false_hash = Fr::zero();
     assert!(!Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[false_hash], &proof).unwrap());
 
@@ -169,13 +169,10 @@ fn test_prove_and_verify<E: Pairing, const N: usize>(
 }
 
 // Generate proof and write to file
-fn write_proof_to_file(
-    proof: &Proof<Bls12<Config>>,
-    file_path: &str,
-) -> Result<(), io::Error> {
+fn write_proof_to_file(proof: &Proof<Bls12<Config>>, file_path: &str) -> Result<(), io::Error> {
     let mut compressed_bytes = Vec::new();
     proof.serialize_compressed(&mut compressed_bytes).unwrap();
-    
+
     let mut file: File = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
@@ -189,9 +186,7 @@ fn write_proof_to_file(
 
 // // Read proof from file
 
-fn read_proof<E: Pairing>(
-    file_path: &str,
-) -> Result<Proof<E>, Box<dyn Error>> {
+fn read_proof<E: Pairing>(file_path: &str) -> Result<Proof<E>, Box<dyn Error>> {
     // Open and read the file
     let mut file = File::open(file_path)?;
     let mut buffer = Vec::new();
@@ -201,5 +196,5 @@ fn read_proof<E: Pairing>(
     let proof: Proof<E> = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    return Ok(proof)
+    return Ok(proof);
 }

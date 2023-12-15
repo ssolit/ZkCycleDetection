@@ -19,7 +19,6 @@ use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::fields::fp::FpVar;
 use std::str::FromStr;
 
-
 pub fn hasher_var<const N: usize, ConstraintF: PrimeField>(
     cs: ConstraintSystemRef<ConstraintF>,
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
@@ -87,7 +86,6 @@ pub fn matrix_flattener<const N: usize, ConstraintF: PrimeField>(
     }
     Ok(flattened_matrix)
 }
-
 
 pub fn matrix_flattener_var<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
@@ -992,28 +990,21 @@ fn test_hashing_large_sparse_matrices() {
     assert_eq!(hash1, hash2);
 }
 
-
-
-
-
-
-
 use ark_crypto_primitives::sponge::DuplexSpongeMode;
-use ark_r1cs_std::uint8::UInt8;
-use ark_relations::r1cs::ConstraintSystemRef;
 use ark_crypto_primitives::sponge::FieldElementSize;
+use ark_r1cs_std::fields::fp::AllocatedFp;
+use ark_r1cs_std::fields::nonnative::params::get_params;
+use ark_r1cs_std::fields::nonnative::params::OptimizationType;
+use ark_r1cs_std::fields::nonnative::AllocatedNonNativeFieldVar;
 use ark_r1cs_std::fields::nonnative::NonNativeFieldVar;
 use ark_r1cs_std::fields::FieldVar;
+use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::ToBitsGadget;
 use ark_r1cs_std::ToBytesGadget;
-use ark_r1cs_std::fields::nonnative::AllocatedNonNativeFieldVar;
-use ark_r1cs_std::fields::fp::AllocatedFp;
-use ark_relations::r1cs::LinearCombination;
-use ark_r1cs_std::fields::nonnative::params::OptimizationType;
-use ark_r1cs_std::fields::nonnative::params::get_params;
-use ark_relations::lc;
 use ark_r1cs_std::ToConstraintFieldGadget;
-
+use ark_relations::lc;
+use ark_relations::r1cs::ConstraintSystemRef;
+use ark_relations::r1cs::LinearCombination;
 
 #[derive(Clone)]
 pub struct PoseidonSpongeVar<F: PrimeField> {
@@ -1035,7 +1026,6 @@ impl<F: PrimeField> SpongeWithGadget<F> for PoseidonSponge<F> {
 }
 
 impl<F: PrimeField> PoseidonSpongeVar<F> {
-    
     fn apply_s_box(
         &self,
         state: &mut [FpVar<F>],
@@ -1055,7 +1045,6 @@ impl<F: PrimeField> PoseidonSpongeVar<F> {
         Ok(())
     }
 
-    
     fn apply_ark(&self, state: &mut [FpVar<F>], round_number: usize) -> Result<(), SynthesisError> {
         for (i, state_elem) in state.iter_mut().enumerate() {
             *state_elem += self.parameters.ark[round_number][i];
@@ -1063,7 +1052,6 @@ impl<F: PrimeField> PoseidonSpongeVar<F> {
         Ok(())
     }
 
-    
     fn apply_mds(&self, state: &mut [FpVar<F>]) -> Result<(), SynthesisError> {
         let mut new_state = Vec::new();
         let zero = FpVar::<F>::zero();
@@ -1079,7 +1067,6 @@ impl<F: PrimeField> PoseidonSpongeVar<F> {
         Ok(())
     }
 
-    
     fn permute(&mut self) -> Result<(), SynthesisError> {
         let full_rounds_over_2 = self.parameters.full_rounds / 2;
         let mut state = self.state.clone();
@@ -1106,7 +1093,6 @@ impl<F: PrimeField> PoseidonSpongeVar<F> {
         Ok(())
     }
 
-    
     fn absorb_internal(
         &mut self,
         mut rate_start_index: usize,
@@ -1142,7 +1128,7 @@ impl<F: PrimeField> PoseidonSpongeVar<F> {
     }
 
     // Squeeze |output| many elements. This does not end in a squeeze
-    
+
     fn squeeze_internal(
         &mut self,
         mut rate_start_index: usize,
@@ -1197,7 +1183,6 @@ impl<F: PrimeField> CryptographicSpongeVar<F, PoseidonSponge<F>> for PoseidonSpo
         }
     }
 
-    
     fn cs(&self) -> ConstraintSystemRef<F> {
         self.cs.clone()
     }
@@ -1227,7 +1212,6 @@ impl<F: PrimeField> CryptographicSpongeVar<F, PoseidonSponge<F>> for PoseidonSpo
         Ok(())
     }
 
-    
     fn squeeze_bytes(&mut self, num_bytes: usize) -> Result<Vec<UInt8<F>>, SynthesisError> {
         let usable_bytes = ((F::MODULUS_BIT_SIZE - 1) / 8) as usize;
 
@@ -1243,7 +1227,6 @@ impl<F: PrimeField> CryptographicSpongeVar<F, PoseidonSponge<F>> for PoseidonSpo
         Ok(bytes)
     }
 
-    
     fn squeeze_bits(&mut self, num_bits: usize) -> Result<Vec<Boolean<F>>, SynthesisError> {
         let usable_bits = (F::MODULUS_BIT_SIZE - 1) as usize;
 
@@ -1259,7 +1242,6 @@ impl<F: PrimeField> CryptographicSpongeVar<F, PoseidonSponge<F>> for PoseidonSpo
         Ok(bits)
     }
 
-    
     fn squeeze_field_elements(
         &mut self,
         num_elements: usize,
