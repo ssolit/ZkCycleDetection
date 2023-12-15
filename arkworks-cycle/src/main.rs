@@ -97,7 +97,7 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
         hash_real.enforce_equal(&hash_claim_var)?;
 
         // check the graph properties
-        check_topo_sort(&adj_matrix_var, &topo_var, &hash_claim_var).unwrap();
+        check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
 
         // finish
         println!("Number of constraints: {}", cs.num_constraints());

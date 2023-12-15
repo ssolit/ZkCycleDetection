@@ -25,10 +25,9 @@ use ark_r1cs_std::fields::fp::FpVar;
 pub fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
-    input_hash: &FpVar<ConstraintF>,
 ) -> Result<(), SynthesisError> {
     let subgraph_nodes = &BooleanArray([(); N].map(|_| Boolean::constant(true)));
-    check_subgraph_topo_sort(adj_matrix, subgraph_nodes, topo, input_hash)
+    check_subgraph_topo_sort(adj_matrix, subgraph_nodes, topo)
 }
 
 // Challenge: can't leak the size of the subgraph
@@ -38,7 +37,6 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     subgraph_nodes: &BooleanArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
-    input_hash: &FpVar<ConstraintF>,
 ) -> Result<(), SynthesisError> {
     // check that there are no duplicate numbers in the toposort
     for i in 0..N {
