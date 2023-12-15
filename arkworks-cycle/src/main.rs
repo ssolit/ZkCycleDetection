@@ -93,17 +93,25 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
         // let flattened_matrix = matrix_flattener::<N, ConstraintF>(&adj_matrix_var);
         
         // let cs = ConstraintSystem::<Fr>::new_ref();
-        let mut rng = test_rng();
-        let absorb1: Vec<_> = (0..256).map(|_| ConstraintF::rand(&mut rng)).collect();
-        let hash_vec = vec![self.adj_hash];
-        let absorb1_var: Vec<_> = hash_vec
-            .iter()
-            .map(|v| FpVar::new_input(ns!(cs, "absorb1"), || Ok(*v)).unwrap())
-            .collect();
+        // let mut rng = test_rng();
+        // let absorb1: Vec<_> = (0..256).map(|_| ConstraintF::rand(&mut rng)).collect();
+        // let hash_vec = vec![self.adj_hash];
+        // let absorb1_var: Vec<_> = hash_vec
+        //     .iter()
+        //     .map(|v| FpVar::new_input(ns!(cs, "absorb1"), || Ok(*v)).unwrap())
+        //     .collect();
 
         // let my_var = FpVar::new_input(ns!(cs, "my_var"), || Ok(*self.adj_hash[0])).unwrap();
 
-
+        // let adj_hash_var = cs.new_input_variable(|| Ok(self.adj_hash))?;
+        // let input_var = ConstraintF::new_variable(
+        //     ns!(cs, "input_commitment"),
+        //     || Ok(self.adj_hash),
+        //     AllocationMode::Input,
+        // )?;
+        let zero : ConstraintF = ConstraintF::zero();
+        let adj_hash_var = zero + self.adj_hash;
+        
 
 
 
@@ -132,9 +140,9 @@ where
     let topological_sort = [0, 1, 2, 3];
 
     // Convert the adjacency matrix to Boolean2DArray
-    let adj_matrix_boolean_2D_array =
+    let adj_matrix_boolean_2_d_array =
         Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
-    let adj_hash_result = hasher(&adj_matrix_boolean_2D_array);
+    let adj_hash_result = hasher(&adj_matrix_boolean_2_d_array);
 
     let adj_hash = match adj_hash_result {
         Ok(hash_vec) => hash_vec[0],

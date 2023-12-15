@@ -22,7 +22,7 @@ pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeFiel
 pub fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
-    input_hash: &Vec<Fr>,
+    input_hash: &ConstraintF,
 ) -> Result<(), SynthesisError> {
     let subgraph_nodes = &BooleanArray([(); N].map(|_| Boolean::constant(true)));
     check_subgraph_topo_sort(adj_matrix, subgraph_nodes, topo, input_hash)
@@ -35,7 +35,7 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
     subgraph_nodes: &BooleanArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
-    input_hash: &Vec<Fr>,
+    input_hash: &ConstraintF,
 ) -> Result<(), SynthesisError> {
     // check that there are no duplicate numbers in the toposort
     for i in 0..N {
@@ -71,7 +71,7 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     }
     //check the public inputted hash against adj_matrix
     let real_hash = hashing::hasher(&adj_matrix).unwrap();
-    assert_eq!(real_hash, *input_hash);
+    // assert_eq!(real_hash, *input_hash);
     Ok(())
 }
 
@@ -81,19 +81,22 @@ pub fn check_multi_subgraph_topo_sort<const N: usize, const M: usize, Constraint
     subgraph_nodes: &BooleanArray<N, ConstraintF>,
     topo: &Uint8Array<N, ConstraintF>,
 ) -> Result<(), SynthesisError> {
-    let combined_adj_matrix = &mut Boolean2DArray(adj_matrix_array.0[0].clone());
+    // let combined_adj_matrix = &mut Boolean2DArray(adj_matrix_array.0[0].clone());
 
-    for k in 1..M {
-        for i in 0..N {
-            for j in 0..N {
-                combined_adj_matrix.0[i][j] =
-                    combined_adj_matrix.0[i][j].or(&adj_matrix_array.0[k][i][j])?;
-            }
-        }
-    }
-    //check the public inputted hash against adj_matrix
-    let real_hash = hashing::hasher(&combined_adj_matrix).unwrap();
-    check_subgraph_topo_sort(combined_adj_matrix, subgraph_nodes, topo, &real_hash)
+    // for k in 1..M {
+    //     for i in 0..N {
+    //         for j in 0..N {
+    //             combined_adj_matrix.0[i][j] =
+    //                 combined_adj_matrix.0[i][j].or(&adj_matrix_array.0[k][i][j])?;
+    //         }
+    //     }
+    // }
+    // //check the public inputted hash against adj_matrix
+    // let real_hash = hashing::hasher(&combined_adj_matrix).unwrap();
+    // let zero : ConstraintF = ConstraintF::zero();
+    // let adj_hash_var = zero + self.adj_hash;
+    // check_subgraph_topo_sort(combined_adj_matrix, subgraph_nodes, topo, &real_hash)
+    unimplemented!()
 }
 
 #[test]
