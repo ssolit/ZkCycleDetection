@@ -24,13 +24,16 @@ use ark_std::error::Error;
 use ark_std::fs::File;
 use ark_std::io;
 
+
+mod lib;
 mod graph_checks;
+mod hashing;
+
 use crate::graph_checks::{
     check_multi_subgraph_topo_sort, check_subgraph_topo_sort, check_topo_sort,
 };
-use crate::graph_checks::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
+use crate::lib::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
 // use crate::graph_checks::alloc;
-use crate::graph_checks::hashing::hasher;
 use ark_r1cs_std::alloc::AllocVar;
 use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
 
@@ -40,14 +43,13 @@ use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
 
 
 use ark_bls12_381::fr::Fr;
-use crate::graph_checks::hashing::poseidon_parameters_for_test;
-use crate::graph_checks::hashing::matrix_flattener;
+use crate::hashing::poseidon_parameters_for_test;
+use crate::hashing::{matrix_flattener, hasher_var, hasher};
 use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::ns;
 use ark_r1cs_std::prelude::AllocationMode;
 use ark_r1cs_std::R1CSVar;
-use crate::graph_checks::hashing::hasher_var;
 use ark_r1cs_std::eq::EqGadget;
 use ark_std::Zero;
 use ark_bls12_381::Config;

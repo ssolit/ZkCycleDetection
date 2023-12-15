@@ -1,8 +1,4 @@
-mod alloc;
-mod cmp;
-pub mod hashing;
-
-use crate::graph_checks::cmp::CmpGadget;
+use crate::lib::CmpGadget;
 use ark_bls12_381::fr::Fr;
 use ark_ff::PrimeField;
 use ark_r1cs_std::{
@@ -11,15 +7,10 @@ use ark_r1cs_std::{
 };
 use ark_relations::r1cs::SynthesisError;
 
-pub struct Uint8Array<const N: usize, ConstraintF: PrimeField>([UInt8<ConstraintF>; N]);
-pub struct BooleanArray<const N: usize, ConstraintF: PrimeField>([Boolean<ConstraintF>; N]);
-pub struct Boolean2DArray<const N: usize, ConstraintF: PrimeField>([[Boolean<ConstraintF>; N]; N]);
-pub struct Boolean3DArray<const N: usize, const M: usize, ConstraintF: PrimeField>(
-    [[[Boolean<ConstraintF>; N]; N]; M],
-);
 
 
 use ark_r1cs_std::fields::fp::FpVar;
+use crate::lib::{Boolean2DArray, Boolean3DArray, BooleanArray, Uint8Array};
 
 // special case where every node should be considered
 pub fn check_topo_sort<const N: usize, ConstraintF: PrimeField>(
