@@ -38,6 +38,7 @@ use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
 
 
 
+
 use ark_bls12_381::fr::Fr;
 use crate::graph_checks::hashing::poseidon_parameters_for_test;
 use crate::graph_checks::hashing::matrix_flattener;
@@ -49,12 +50,22 @@ use ark_r1cs_std::R1CSVar;
 use crate::graph_checks::hashing::hasher_var;
 use ark_r1cs_std::eq::EqGadget;
 use ark_std::Zero;
+use ark_bls12_381::Config;
+use ark_ec::bls12::Bls12;
 
 
 
 fn main() {
     //function called by cargo run
-    match test_prove_and_verify::<Bls12_381>() {
+    let adj_matrix = [
+        [false, true, true, false],   //               [0]
+        [false, false, true, false],  //               / \
+        [false, false, false, true],  //             [1]->[2] -> 3
+        [false, false, false, false], //
+    ];
+    let topological_sort = [0, 1, 2, 3];
+
+    match test_prove_and_verify::<Bls12_381, 4>(adj_matrix, topological_sort) {
         Ok(()) => println!("finished successfully!"),
         Err(e) => eprintln!("Back in Main. Error: {:?}", e),
     }
@@ -110,23 +121,17 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
 
 //takes the adj matrix and toposort defined, builds the circuit, gens the proof, & verifies it
 //also will write the proof and read the proof for I/O  demonstration
-fn test_prove_and_verify<E>() -> Result<(), Box<dyn Error>>
-where
-    E: Pairing,
-{
+fn test_prove_and_verify<E: Pairing, const N: usize>(
+    adj_matrix: [[bool; N]; N], 
+    topological_sort: [u8; N],
+) -> Result<(), Box<dyn Error>> {
+    // hardcoded for bls12_381 because our hash function is as well
     use ark_bls12_381::Fr as PrimeField;
     use ark_bls12_381::Config;
     use ark_ec::bls12::Bls12;
 
     let cs = ConstraintSystem::<Fr>::new_ref();
     //defining the inputs
-    let adj_matrix = [
-        [false, true, true, false],   //               [0]
-        [false, false, true, false],  //               / \
-        [false, false, false, true],  //             [1]->[2] -> 3
-        [false, false, false, false], //
-    ];
-    let topological_sort = [0, 1, 2, 3];
 
     // Convert the adjacency matrix to Boolean2DArray
     let adj_matrix_boolean_2_d_array =
@@ -138,39 +143,39 @@ where
         Err(e) => return Err(Box::new(e)),
     };
 
-    let circuit_inputs: MyGraphCircuitStruct<4, Fr> = MyGraphCircuitStruct {
+    let circuit_inputs: MyGraphCircuitStruct<N, Fr> = MyGraphCircuitStruct {
         adj_matrix: adj_matrix,
         toposort: topological_sort,
         adj_hash: adj_hash,
     };
-    
     // generate the proof
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
     let (pk, vk) = Groth16::<Bls12_381>::setup(circuit_inputs.clone(), &mut rng).unwrap();
     let pvk = prepare_verifying_key::<Bls12_381>(&vk);
     let proof: Proof<Bls12<Config>> = Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
 
-    // assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &adj_hash[..], &proof).unwrap());
+    // test some verification checks
     assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
-    println!("working case passed");
-
     let false_hash = Fr::zero();
     assert!(!Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[false_hash], &proof).unwrap());
+
+    // test IO
+    let file_path = "./proof.bin";
+    write_proof_to_file(&proof, file_path)?;
+    let read_proof: Proof<Bls12<Config>> = read_proof::<Bls12_381>(file_path)?;
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
 
     Ok(())
 }
 
-use ark_bls12_381::Config;
-use ark_ec::bls12::Bls12;
 // Generate proof and write to file
-fn write_proof_to_file<E: Pairing, const N: usize, ConstraintF: PrimeField>(
+fn write_proof_to_file(
     proof: &Proof<Bls12<Config>>,
     file_path: &str,
 ) -> Result<(), io::Error> {
-
     let mut compressed_bytes = Vec::new();
     proof.serialize_compressed(&mut compressed_bytes).unwrap();
-    let file_path = "./proof.bin";
+    
     let mut file: File = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
@@ -184,11 +189,9 @@ fn write_proof_to_file<E: Pairing, const N: usize, ConstraintF: PrimeField>(
 
 // // Read proof from file
 
-fn read_proof_and_verify<E: Pairing>(
+fn read_proof<E: Pairing>(
     file_path: &str,
-    pvk: &VerifyingKey<E>,
-    public_input: &[E::ScalarField],
-) -> Result<bool, Box<dyn Error>> {
+) -> Result<Proof<E>, Box<dyn Error>> {
     // Open and read the file
     let mut file = File::open(file_path)?;
     let mut buffer = Vec::new();
@@ -198,5 +201,5 @@ fn read_proof_and_verify<E: Pairing>(
     let proof: Proof<E> = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    return Ok(true);
+    return Ok(proof)
 }
