@@ -61,7 +61,7 @@ pub fn matrix_flattener<const N: usize, ConstraintF: PrimeField>(
 }
 
 /// Generate default parameters (bls381-fr-only) for alpha = 17, state-size = 8
-pub(crate) fn poseidon_parameters_for_test<ConstraintF: PrimeField>() -> PoseidonConfig<ConstraintF> {
+pub(crate) fn poseidon_parameters_for_test<F: PrimeField>() -> PoseidonConfig<F> {
     let alpha = 17;
     let mds = vec![
         vec![
