@@ -14,14 +14,16 @@ use ark_std::test_rng;
 use crate::graph_checks::cmp;
 use crate::graph_checks::Boolean2DArray;
 use ark_r1cs_std::alloc::AllocVar;
+use ark_r1cs_std::fields::fp::FpVar;
+use std::str::FromStr;
 
 //construct the hash of a boolean vector
 // 1. Generate Params 2. Preprocess matrix 3. create sponge
 pub fn hasher<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
-) -> Result<Vec<Fr>, SynthesisError> {
+) -> Result<Vec<FpVar<ConstraintF>>, SynthesisError> {
     let preprocess = matrix_flattener(&adj_matrix).unwrap();
-    let mut sponge = sponge_create::<Fr>(&preprocess).unwrap();
+    let mut sponge = sponge_create::<ConstraintF>(&preprocess).unwrap();
     let hash = squeeze_sponge(&mut sponge).unwrap();
 
     Ok(hash)
@@ -29,18 +31,18 @@ pub fn hasher<const N: usize, ConstraintF: PrimeField>(
 
 // getting the params and creating a new sponge object, absorbing a single boolean vector
 pub fn sponge_create<ConstraintF: PrimeField>(
-    input: &Vec<bool>,
-) -> Result<PoseidonSponge<Fr>, SynthesisError> {
+    input: &Vec<FpVar<ConstraintF>>,
+) -> Result<PoseidonSponge<ConstraintF>, SynthesisError> {
     let sponge_param = poseidon_parameters_for_test();
     // let elem = Fr::rand(&mut rng);
-    let mut sponge1 = PoseidonSponge::<Fr>::new(&sponge_param);
+    let mut sponge1 = PoseidonSponge::<ConstraintF>::new(&sponge_param);
     sponge1.absorb(input);
 
     Ok(sponge1)
 }
 
 //squeezes a single field element (hash) from an existing sponge with data
-pub fn squeeze_sponge(sponge: &mut PoseidonSponge<Fr>) -> Result<Vec<Fr>, SynthesisError> {
+pub fn squeeze_sponge<ConstraintF: PrimeField>(sponge: &mut PoseidonSponge<ConstraintF>) -> Result<Vec<FpVar<ConstraintF>>, SynthesisError> {
     let squeeze = sponge.squeeze_native_field_elements(1);
     Ok(squeeze.to_vec())
 }
@@ -48,23 +50,18 @@ pub fn squeeze_sponge(sponge: &mut PoseidonSponge<Fr>) -> Result<Vec<Fr>, Synthe
 //TODO: Implement bit-packing
 pub fn matrix_flattener<const N: usize, ConstraintF: PrimeField>(
     adj_matrix: &Boolean2DArray<N, ConstraintF>,
-) -> Result<Vec<bool>, SynthesisError> {
+) -> Result<Vec<Boolean<ConstraintF>>, SynthesisError> {
     let mut flattened_matrix = Vec::new();
     for i in 0..N {
         for j in 0..N {
-            let transacted = &adj_matrix.0[i][j]; // true if person i sent to person j
-            if transacted.value()? == true {
-                flattened_matrix.push(true);
-            } else {
-                flattened_matrix.push(false);
-            }
+            flattened_matrix.push(adj_matrix.0[i][j]);
         }
     }
     Ok(flattened_matrix)
 }
 
 /// Generate default parameters (bls381-fr-only) for alpha = 17, state-size = 8
-pub(crate) fn poseidon_parameters_for_test<F: PrimeField>() -> PoseidonConfig<F> {
+pub(crate) fn poseidon_parameters_for_test<ConstraintF: PrimeField>() -> PoseidonConfig<ConstraintF> {
     let alpha = 17;
     let mds = vec![
         vec![

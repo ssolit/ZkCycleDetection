@@ -74,8 +74,8 @@ pub fn check_subgraph_topo_sort<const N: usize, ConstraintF: PrimeField>(
     }
     //check the public inputted hash against adj_matrix
     let real_hash = hashing::hasher(&adj_matrix).unwrap();
-    // real_hash.enforce_equal(input_hash);
-    input_hash.enforce_equal(real_hash);
+    // let real_hash_var = FpVar::new_witness_var() // Todo
+    input_hash.enforce_equal(&real_hash[0]);
     // assert_eq!(real_hash, *input_hash);
     Ok(())
 }

@@ -45,6 +45,7 @@ use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig};
 use ark_r1cs_std::fields::fp::FpVar;
 use ark_relations::ns;
 use ark_r1cs_std::prelude::AllocationMode;
+use ark_r1cs_std::R1CSVar;
 
 
 
@@ -159,7 +160,7 @@ where
     let circuit_inputs: MyGraphCircuitStruct<4, Fr> = MyGraphCircuitStruct {
         adj_matrix: adj_matrix,
         toposort: topological_sort,
-        adj_hash: adj_hash,
+        adj_hash: adj_hash.value()?,
     };
     //TODO: Unwrap circuit_inputs to just grab the adj_matrix
     // Create a constraint system
@@ -175,7 +176,7 @@ where
     let proof = Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
 
     // assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &adj_hash[..], &proof).unwrap());
-    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash.value()?], &proof).unwrap());
 
     //TODO: Make failing test case with wrong hash
     let false_adj_matrix = [
