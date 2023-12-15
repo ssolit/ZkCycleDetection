@@ -39,6 +39,11 @@ use ark_relations::r1cs::{ConstraintLayer, ConstraintSystem, TracingMode};
 
 
 use ark_bls12_381::fr::Fr;
+use crate::graph_checks::hashing::poseidon_parameters_for_test;
+use crate::graph_checks::hashing::matrix_flattener;
+use ark_crypto_primitives::sponge::poseidon::{PoseidonConfig};
+use ark_r1cs_std::fields::fp::FpVar;
+use ark_relations::ns;
 
 
 
@@ -52,14 +57,14 @@ fn main() {
 
 // struct for generating the circuit trace
 //the fields are the inputs to the circuit
-struct MyGraphCircuitStruct<const N: usize> {
+struct MyGraphCircuitStruct<const N: usize, ConstraintF: PrimeField> {
     adj_matrix: [[bool; N]; N],
     toposort: [u8; N],
-    adj_hash: Fr,
+    adj_hash: ConstraintF,
 }
 
 // implementing cloning for MyGraphCircuitStruct
-impl<const N: usize> Clone for MyGraphCircuitStruct<N> {
+impl<const N: usize, ConstraintF: PrimeField> Clone for MyGraphCircuitStruct<N, ConstraintF> {
     fn clone(&self) -> Self {
         Self {
             adj_matrix: self.adj_matrix.clone(),
@@ -71,7 +76,7 @@ impl<const N: usize> Clone for MyGraphCircuitStruct<N> {
 
 // Takes the struct that holds inputs and generates the entire circuit
 impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
-    for MyGraphCircuitStruct<N>
+    for MyGraphCircuitStruct<N, ConstraintF>
 {
     fn generate_constraints(
         self,
@@ -80,8 +85,28 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
         let adj_matrix_var =
             Boolean2DArray::new_witness(cs.clone(), || Ok(self.adj_matrix)).unwrap();
         let topo_var = Uint8Array::new_witness(cs.clone(), || Ok(self.toposort)).unwrap();
-        // TODO: Get the public input hash
-        let adj_hash_var = Fr::new_input(cs.clone(), Ok(self.adj_hash)).unwrap();
+
+
+
+        // TODO: Get the public input hash;
+        // let mut constraint_sponge = PoseidonSpongeVar::<Fr>::new(cs.clone(), &p_config);
+        // let flattened_matrix = matrix_flattener::<N, ConstraintF>(&adj_matrix_var);
+        
+        // let cs = ConstraintSystem::<Fr>::new_ref();
+        let mut rng = test_rng();
+        let absorb1: Vec<_> = (0..256).map(|_| ConstraintF::rand(&mut rng)).collect();
+        let hash_vec = vec![self.adj_hash];
+        let absorb1_var: Vec<_> = hash_vec
+            .iter()
+            .map(|v| FpVar::new_input(ns!(cs, "absorb1"), || Ok(*v)).unwrap())
+            .collect();
+
+        // let my_var = FpVar::new_input(ns!(cs, "my_var"), || Ok(*self.adj_hash[0])).unwrap();
+
+
+
+
+
         check_topo_sort(&adj_matrix_var, &topo_var, &adj_hash_var).unwrap();
         println!("Number of constraints: {}", cs.num_constraints());
 
@@ -116,7 +141,7 @@ where
         Err(e) => return Err(Box::new(e)),
     };
 
-    let circuit_inputs: MyGraphCircuitStruct<4> = MyGraphCircuitStruct {
+    let circuit_inputs: MyGraphCircuitStruct<4, Fr> = MyGraphCircuitStruct {
         adj_matrix: adj_matrix,
         toposort: topological_sort,
         adj_hash: adj_hash,
@@ -171,10 +196,10 @@ where
     // // assert!(!Groth16::<E>::verify_with_processed_vk(&pvk, &[a], &read_proof).unwrap());
     // Generate and write proof
     // Example usage with specified types and size N
-    let start = Instant::now();
-    write_proof_to_file::<Bls12_381, 4>(&adj_matrix, &topological_sort, "./proof.bin", &adj_hash)?;
-    let duration = start.elapsed();
-    println!("Execution time: {:?}", duration);
+    // let start = Instant::now();
+    // write_proof_to_file::<Bls12_381, 4>(&adj_matrix, &topological_sort, "./proof.bin", &adj_hash)?;
+    // let duration = start.elapsed();
+    // println!("Execution time: {:?}", duration);
 
     // Read and verify proof
     // let is_valid = read_and_verify_proof::<Bls12_381>("./proof.bin", &pvk, &[])?;
@@ -183,56 +208,56 @@ where
     Ok(())
 }
 
-// Generate proof and write to file
-fn write_proof_to_file<E: Pairing, const N: usize>(
-    adj_matrix: &[[bool; N]; N],
-    toposort: &[u8; N],
-    file_path: &str,
-    adj_hash: &Fr,
-) -> Result<(), io::Error> {
-    //create circuit inputs struct:
-    let circuit_inputs: MyGraphCircuitStruct<N> = MyGraphCircuitStruct {
-        adj_matrix: *adj_matrix,
-        toposort: *toposort,
-        adj_hash: *adj_hash,
-    };
+// // Generate proof and write to file
+// fn write_proof_to_file<E: Pairing, const N: usize>(
+//     adj_matrix: &[[bool; N]; N],
+//     toposort: &[u8; N],
+//     file_path: &str,
+//     adj_hash: &Fr,
+// ) -> Result<(), io::Error> {
+//     //create circuit inputs struct:
+//     let circuit_inputs: MyGraphCircuitStruct<N, ConstraintF> = MyGraphCircuitStruct {
+//         adj_matrix: *adj_matrix,
+//         toposort: *toposort,
+//         adj_hash: *adj_hash,
+//     };
 
-    // Generate the proof using the circuit and inputs
-    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
-    let (pk, vk) = Groth16::<E>::setup(circuit_inputs.clone(), &mut rng).unwrap();
-    let pvk = prepare_verifying_key::<E>(&vk);
-    let proof = Groth16::<E>::prove(&pk, circuit_inputs, &mut rng).unwrap();
+//     // Generate the proof using the circuit and inputs
+//     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+//     let (pk, vk) = Groth16::<E>::setup(circuit_inputs.clone(), &mut rng).unwrap();
+//     let pvk = prepare_verifying_key::<E>(&vk);
+//     let proof = Groth16::<E>::prove(&pk, circuit_inputs, &mut rng).unwrap();
 
-    // Serialize the proof to a byte vector
+//     // Serialize the proof to a byte vector
 
-    let mut compressed_bytes = Vec::new();
-    proof.serialize_compressed(&mut compressed_bytes).unwrap();
+//     let mut compressed_bytes = Vec::new();
+//     proof.serialize_compressed(&mut compressed_bytes).unwrap();
 
-    // Create and write the proof to the file
+//     // Create and write the proof to the file
 
-    let mut file = File::create(file_path)?;
-    file.write_all(&compressed_bytes)?;
-    file.flush()?;
+//     let mut file = File::create(file_path)?;
+//     file.write_all(&compressed_bytes)?;
+//     file.flush()?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
-// Read proof from file
+// // Read proof from file
 
-fn read_and_verify_proof<E: Pairing>(
-    file_path: &str,
-    pvk: &VerifyingKey<E>,
-    public_input: &[E::ScalarField],
-) -> Result<bool, Box<dyn Error>> {
-    // Open and read the file
-    let mut file = File::open(file_path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
+// fn read_and_verify_proof<E: Pairing>(
+//     file_path: &str,
+//     pvk: &VerifyingKey<E>,
+//     public_input: &[E::ScalarField],
+// ) -> Result<bool, Box<dyn Error>> {
+//     // Open and read the file
+//     let mut file = File::open(file_path)?;
+//     let mut buffer = Vec::new();
+//     file.read_to_end(&mut buffer)?;
 
-    // Deserialize the proof from the buffer
-    let proof = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+//     // Deserialize the proof from the buffer
+//     let proof = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())
+//         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    // Verify the proof
-    Groth16::<E>::verify(pvk, public_input, &proof).map_err(|e| Box::new(e) as Box<dyn Error>)
-}
+//     // Verify the proof
+//     Groth16::<E>::verify(pvk, public_input, &proof).map_err(|e| Box::new(e) as Box<dyn Error>)
+// }
