@@ -15,8 +15,10 @@ ark-relations = { version = "0.4" }
 ark-crypto-primitives = { version = "0.4", features = ["sponge"]}
 ark-groth16 = { version = "^0.4.0", default-features = false }
 ark-serialize = { version = "0.4", features = ["derive"] }
-
+rand = {version = "0.8.5"}
 [dev-dependencies]
 itertools = "0.10.1"
 tracing = { version = "0.1", default-features = false, features = [ "attributes" ] }
 tracing-subscriber = { version = "0.2" }
+criterion = "0.3"
+

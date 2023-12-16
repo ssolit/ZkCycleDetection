@@ -5,8 +5,6 @@
 use ark_crypto_primitives::snark::{CircuitSpecificSetupSNARK, SNARK};
 use ark_ec::pairing::Pairing;
 use ark_ff::PrimeField;
-use std::time::Instant;
-
 use ark_groth16::VerifyingKey;
 use ark_groth16::{prepare_verifying_key, Groth16, Proof};
 use ark_relations::{
@@ -17,6 +15,8 @@ use ark_std::{
     rand::{RngCore, SeedableRng},
     test_rng, UniformRand,
 };
+use rand::Rng;
+use std::time::Instant;
 
 use ark_bls12_381::Bls12_381;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Read, Write};
@@ -106,14 +106,65 @@ impl<ConstraintF: PrimeField, const N: usize> ConstraintSynthesizer<ConstraintF>
         // check the graph properties
         check_topo_sort(&adj_matrix_var, &topo_var).unwrap();
 
-        // finish
+        // BENCHMARK 0: Circuit size
         println!("Number of constraints: {}", cs.num_constraints());
         Ok(())
     }
 }
 
-//takes the adj matrix and toposort defined, builds the circuit, gens the proof, & verifies it
-//also will write the proof and read the proof for I/O  demonstration
+// Generate proof and write to file
+fn write_proof_to_file(proof: &Proof<Bls12<Config>>, file_path: &str) -> Result<(), io::Error> {
+    let mut compressed_bytes = Vec::new();
+    proof.serialize_compressed(&mut compressed_bytes).unwrap();
+
+    let mut file: File = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .read(true)
+        .open(file_path)
+        .unwrap();
+    file.write_all(&compressed_bytes)?;
+    file.flush()?;
+    Ok(())
+}
+
+// // Read proof from file
+
+fn read_proof<E: Pairing>(file_path: &str) -> Result<Proof<E>, Box<dyn Error>> {
+    // Open and read the file
+    let mut file = File::open(file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+
+    // Deserialize the proof from the buffer
+    let proof: Proof<E> = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+    return Ok(proof);
+}
+
+fn generate_graph<const N: usize>(allow_cycles: bool) -> ([[bool; N]; N], [u8; N]) {
+    let mut rng = rand::thread_rng();
+    let mut adj_matrix = [[false; N]; N];
+    let mut topological_sort = [0u8; N];
+
+    for i in 0..N {
+        for j in 0..N {
+            if allow_cycles && i != j {
+                adj_matrix[i][j] = rng.gen();
+            } else if j > i {
+                adj_matrix[i][j] = rng.gen();
+            }
+        }
+        topological_sort[i] = i as u8; // Convert usize to u8
+    }
+
+    // Note: The topological sort generated here may not be valid if the graph has cycles
+    (adj_matrix, topological_sort)
+}
+
+// takes the adj matrix and toposort defined, builds the circuit, gens the proof, & verifies it
+// also will write the proof and read the proof for I/O  demonstration
 fn test_prove_and_verify<E: Pairing, const N: usize>(
     adj_matrix: [[bool; N]; N],
     topological_sort: [u8; N],
@@ -168,33 +219,226 @@ fn test_prove_and_verify<E: Pairing, const N: usize>(
     Ok(())
 }
 
-// Generate proof and write to file
-fn write_proof_to_file(proof: &Proof<Bls12<Config>>, file_path: &str) -> Result<(), io::Error> {
-    let mut compressed_bytes = Vec::new();
-    proof.serialize_compressed(&mut compressed_bytes).unwrap();
+#[test]
+fn test_30_30_matrix() {
+    let (adj_matrix, topological_sort) = generate_graph::<30>(false);
 
-    let mut file: File = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .read(true)
-        .open(file_path)
-        .unwrap();
-    file.write_all(&compressed_bytes)?;
-    file.flush()?;
-    Ok(())
+    // hardcoded for bls12_381 because our hash function is as well
+    use ark_bls12_381::Config;
+    use ark_bls12_381::Fr as PrimeField;
+    use ark_ec::bls12::Bls12;
+
+    let cs = ConstraintSystem::<Fr>::new_ref();
+    //defining the inputs
+
+    // Convert the adjacency matrix to Boolean2DArray
+    let adj_matrix_boolean_2_d_array =
+        Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let adj_hash_result = hasher(&adj_matrix_boolean_2_d_array);
+    //adj_hash_result.clone().unwrap()
+    let adj_hash = match adj_hash_result {
+        Ok(hash_vec) => hash_vec[0],
+        Err(e) => panic!("Error occurred: {:?}", e),
+    };
+
+    //BENCHMARK 1 : build the circuit
+    let start_circ = Instant::now();
+    let circuit_inputs: MyGraphCircuitStruct<30, Fr> = MyGraphCircuitStruct {
+        adj_matrix: adj_matrix,
+        toposort: topological_sort,
+        adj_hash: adj_hash,
+    };
+    let end_circ = start_circ.elapsed().as_millis();
+    println!("Time taken to build circuit: {} ms", end_circ);
+
+    // BENCHMARK 2: generate the proof
+    let start_gen = Instant::now();
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    let (pk, vk) = Groth16::<Bls12_381>::setup(circuit_inputs.clone(), &mut rng).unwrap();
+    let pvk = prepare_verifying_key::<Bls12_381>(&vk);
+    let proof: Proof<Bls12<Config>> =
+        Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
+    let end_gen = start_gen.elapsed().as_millis();
+    println!("Time taken to generate proof: {} ms", end_gen);
+
+    // BENCHMARK 3: Write proof to file
+    let start_write = Instant::now();
+    let file_path = "./proof.bin";
+    write_proof_to_file(&proof, file_path).unwrap();
+    let end_write = start_write.elapsed().as_millis();
+    println!("Time taken to write proof to binary: {} ms", end_write);
+
+    //BENCHMARK 3: verify the proof
+    let start_verify = Instant::now();
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
+    let end_verify = start_verify.elapsed().as_millis();
+    println!("Time take to verify proof: {} ms", end_verify);
 }
 
-// // Read proof from file
+#[test]
+fn test_35_35_matrix() {
+    let (adj_matrix, topological_sort) = generate_graph::<35>(false);
 
-fn read_proof<E: Pairing>(file_path: &str) -> Result<Proof<E>, Box<dyn Error>> {
-    // Open and read the file
-    let mut file = File::open(file_path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
+    // hardcoded for bls12_381 because our hash function is as well
+    use ark_bls12_381::Config;
+    use ark_bls12_381::Fr as PrimeField;
+    use ark_ec::bls12::Bls12;
 
-    // Deserialize the proof from the buffer
-    let proof: Proof<E> = Proof::<E>::deserialize_compressed(&mut buffer.as_slice())
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let cs = ConstraintSystem::<Fr>::new_ref();
+    //defining the inputs
 
-    return Ok(proof);
+    // Convert the adjacency matrix to Boolean2DArray
+    let adj_matrix_boolean_2_d_array =
+        Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let adj_hash_result = hasher(&adj_matrix_boolean_2_d_array);
+    //adj_hash_result.clone().unwrap()
+    let adj_hash = match adj_hash_result {
+        Ok(hash_vec) => hash_vec[0],
+        Err(e) => panic!("Error occurred: {:?}", e),
+    };
+
+    //BENCHMARK 1 : build the circuit
+    let start_circ = Instant::now();
+    let circuit_inputs: MyGraphCircuitStruct<35, Fr> = MyGraphCircuitStruct {
+        adj_matrix: adj_matrix,
+        toposort: topological_sort,
+        adj_hash: adj_hash,
+    };
+    let end_circ = start_circ.elapsed().as_millis();
+    println!("Time taken to build circuit: {} ms", end_circ);
+
+    // BENCHMARK 2: generate the proof
+    let start_gen = Instant::now();
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    let (pk, vk) = Groth16::<Bls12_381>::setup(circuit_inputs.clone(), &mut rng).unwrap();
+    let pvk = prepare_verifying_key::<Bls12_381>(&vk);
+    let proof: Proof<Bls12<Config>> =
+        Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
+    let end_gen = start_gen.elapsed().as_millis();
+    println!("Time taken to generate proof: {} ms", end_gen);
+
+    // BENCHMARK 3: Write proof to file
+    let start_write = Instant::now();
+    let file_path = "./proof.bin";
+    write_proof_to_file(&proof, file_path).unwrap();
+    let end_write = start_write.elapsed().as_millis();
+    println!("Time taken to write proof to binary: {} ms", end_write);
+
+    //BENCHMARK 3: verify the proof
+    let start_verify = Instant::now();
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
+    let end_verify = start_verify.elapsed().as_millis();
+    println!("Time take to verify proof: {} ms", end_verify);
+}
+
+#[test]
+fn test_40_40_matrix() {
+    let (adj_matrix, topological_sort) = generate_graph::<40>(false);
+
+    // hardcoded for bls12_381 because our hash function is as well
+    use ark_bls12_381::Config;
+    use ark_bls12_381::Fr as PrimeField;
+    use ark_ec::bls12::Bls12;
+
+    let cs = ConstraintSystem::<Fr>::new_ref();
+    //defining the inputs
+
+    // Convert the adjacency matrix to Boolean2DArray
+    let adj_matrix_boolean_2_d_array =
+        Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let adj_hash_result = hasher(&adj_matrix_boolean_2_d_array);
+    //adj_hash_result.clone().unwrap()
+    let adj_hash = match adj_hash_result {
+        Ok(hash_vec) => hash_vec[0],
+        Err(e) => panic!("Error occurred: {:?}", e),
+    };
+
+    //BENCHMARK 1 : build the circuit
+    let start_circ = Instant::now();
+    let circuit_inputs: MyGraphCircuitStruct<40, Fr> = MyGraphCircuitStruct {
+        adj_matrix: adj_matrix,
+        toposort: topological_sort,
+        adj_hash: adj_hash,
+    };
+    let end_circ = start_circ.elapsed().as_millis();
+    println!("Time taken to build circuit: {} ms", end_circ);
+
+    // BENCHMARK 2: generate the proof
+    let start_gen = Instant::now();
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    let (pk, vk) = Groth16::<Bls12_381>::setup(circuit_inputs.clone(), &mut rng).unwrap();
+    let pvk = prepare_verifying_key::<Bls12_381>(&vk);
+    let proof: Proof<Bls12<Config>> =
+        Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
+    let end_gen = start_gen.elapsed().as_millis();
+    println!("Time taken to generate proof: {} ms", end_gen);
+
+    // BENCHMARK 3: Write proof to file
+    let start_write = Instant::now();
+    let file_path = "./proof.bin";
+    write_proof_to_file(&proof, file_path).unwrap();
+    let end_write = start_write.elapsed().as_millis();
+    println!("Time taken to write proof to binary: {} ms", end_write);
+
+    //BENCHMARK 3: verify the proof
+    let start_verify = Instant::now();
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
+    let end_verify = start_verify.elapsed().as_millis();
+    println!("Time take to verify proof: {} ms", end_verify);
+}
+
+#[test]
+fn test_50_50_matrix() {
+    let (adj_matrix, topological_sort) = generate_graph::<45>(false);
+
+    // hardcoded for bls12_381 because our hash function is as well
+    use ark_bls12_381::Config;
+    use ark_bls12_381::Fr as PrimeField;
+    use ark_ec::bls12::Bls12;
+
+    let cs = ConstraintSystem::<Fr>::new_ref();
+    //defining the inputs
+
+    // Convert the adjacency matrix to Boolean2DArray
+    let adj_matrix_boolean_2_d_array =
+        Boolean2DArray::new_witness(cs.clone(), || Ok(adj_matrix)).unwrap();
+    let adj_hash_result = hasher(&adj_matrix_boolean_2_d_array);
+    //adj_hash_result.clone().unwrap()
+    let adj_hash = match adj_hash_result {
+        Ok(hash_vec) => hash_vec[0],
+        Err(e) => panic!("Error occurred: {:?}", e),
+    };
+
+    //BENCHMARK 1 : build the circuit
+    let start_circ = Instant::now();
+    let circuit_inputs: MyGraphCircuitStruct<45, Fr> = MyGraphCircuitStruct {
+        adj_matrix: adj_matrix,
+        toposort: topological_sort,
+        adj_hash: adj_hash,
+    };
+    let end_circ = start_circ.elapsed().as_millis();
+    println!("Time taken to build circuit: {} ms", end_circ);
+
+    // BENCHMARK 2: generate the proof
+    let start_gen = Instant::now();
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    let (pk, vk) = Groth16::<Bls12_381>::setup(circuit_inputs.clone(), &mut rng).unwrap();
+    let pvk = prepare_verifying_key::<Bls12_381>(&vk);
+    let proof: Proof<Bls12<Config>> =
+        Groth16::<Bls12_381>::prove(&pk, circuit_inputs, &mut rng).unwrap();
+    let end_gen = start_gen.elapsed().as_millis();
+    println!("Time taken to generate proof: {} ms", end_gen);
+
+    // BENCHMARK 3: Write proof to file
+    let start_write = Instant::now();
+    let file_path = "./proof.bin";
+    write_proof_to_file(&proof, file_path).unwrap();
+    let end_write = start_write.elapsed().as_millis();
+    println!("Time taken to write proof to binary: {} ms", end_write);
+
+    //BENCHMARK 3: verify the proof
+    let start_verify = Instant::now();
+    assert!(Groth16::<Bls12_381>::verify_with_processed_vk(&pvk, &[adj_hash], &proof).unwrap());
+    let end_verify = start_verify.elapsed().as_millis();
+    println!("Time take to verify proof: {} ms", end_verify);
 }
